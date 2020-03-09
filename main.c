@@ -70,10 +70,10 @@ unsigned int hash(const int wl) {
 // create the table
 Table *createTable(void) {
     // allocate
-    Table *table = malloc(sizeof(table) * 1);
+    Table *table = (Table*)malloc(sizeof(Table) * 1);
 
     // allocate table entries
-    table->entries = malloc(sizeof(Pair*) * TABLE_SIZE);
+    table->entries = (Pair**)malloc(sizeof(Pair*) * TABLE_SIZE);
 
     // set each entry to null
     int i;
@@ -85,7 +85,7 @@ Table *createTable(void) {
 
 // create one pair
 Pair *createPair(const int wl, const double in) {
-    Pair *pair = malloc(sizeof(pair) * 1);
+    Pair *pair = (Pair *)malloc(sizeof(pair) * 1);
     pair->wavelength = wl;
     pair->intensity = in; // NO MEMORY ALLOC !!!!
 
@@ -126,11 +126,6 @@ void addPairToTable(Table *table, const int wl, const double in)
         // check key
 
         if(entry->wavelength == wl) {
-            // match found, replace values
-            /*
-            free(entry->wavelength); //MAYBE BUG HERE
-            free(entry->intensity);
-             */
             return; // for now
         }
 
@@ -165,6 +160,7 @@ void printTable(Table *table) {
             entry = entry->next;
         }
     }
+    printf("\n");
 }
 
 // helper function to print content of table
@@ -173,8 +169,9 @@ void printFunction(Table *table) {
     for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
         double thisIntensity = lookup(i, table);
 
-        if(thisIntensity != NULL_DOUBLE) {
-            printf("%d : %f\n", i, thisIntensity);
+        if (thisIntensity != NULL_DOUBLE)
+        {
+            printf("%d : %0.13f\n", i, thisIntensity);
         }
     }
 }
@@ -244,8 +241,13 @@ void destroyAllContainers() {
 void readFile(char* filename, Table* table) {
 
     FILE * data_file = fopen(filename, "r");
-    char ch;
 
+    if(data_file == NULL) {
+        printf("File not found...\n");
+        return;
+    }
+
+    char ch;
     char int_c[3] = "";
     char float_c[11] = "";
 
@@ -281,14 +283,29 @@ void readFile(char* filename, Table* table) {
             float_count++;
         }
     }
+
     fclose(data_file);
-    printFunction(cie_daylight);
-} // EVERY TIME I LEAVE THE FUNCTION I GET "*** stack smashing detected ***: <unknown> terminated". I DUNNO WHAT'S WRONG...
+}
 
 // do the above for all provided functions
 void readAllFiles() {
+    // luminaire data
+    readFile("../data/luminaire data/cie_incandescent.txt", cie_incandescent);
+    readFile("../data/luminaire data/f11.txt", f11);
     readFile("../data/luminaire data/cie_daylight.txt", cie_daylight);
 
+    // reflection data
+    readFile("../data/reflectance values/a1.txt", xrite_a1);
+    readFile("../data/reflectance values/e2.txt", xrite_e2);
+    readFile("../data/reflectance values/f4.txt", xrite_f4);
+    readFile("../data/reflectance values/g4.txt", xrite_g4);
+    readFile("../data/reflectance values/h4.txt", xrite_h4);
+    readFile("../data/reflectance values/j4.txt", xrite_j4);
+
+    // cie matching functions
+    readFile("../data/cie/cie_x.txt", cie_x);
+    readFile("../data/cie/cie_y.txt", cie_y);
+    readFile("../data/cie/cie_z.txt", cie_z);
 }
 
 // ========================================================
@@ -311,7 +328,7 @@ int main(int argc, char **argv) {
     printLine();
     printInstructions();
 
-
+    printFunction(cie_y);
 
     return 0;
 }

@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/main.c
+/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour/main.c
 stdio.h
 -
 stdlib.h

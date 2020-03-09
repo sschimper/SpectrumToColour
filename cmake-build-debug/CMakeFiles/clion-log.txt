@@ -1,4 +1,4 @@
-/snap/clion/103/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=/usr/bin/g++ -G "CodeBlocks - Unix Makefiles" "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1"
+/snap/clion/103/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=/usr/bin/g++ -G "CodeBlocks - Unix Makefiles" "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour"
 -- The C compiler identification is GNU 7.4.0
 -- Check for working C compiler: /usr/bin/cc
 -- Check for working C compiler: /usr/bin/cc -- works
@@ -14,4 +14,4 @@ CMake Warning:
     CMAKE_CXX_COMPILER
 
 
--- Build files have been written to: /home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/cmake-build-debug
+-- Build files have been written to: /home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour/cmake-build-debug

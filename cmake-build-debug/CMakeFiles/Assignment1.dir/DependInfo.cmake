@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/main.c" "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/cmake-build-debug/CMakeFiles/Assignment1.dir/main.c.o"
+  "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour/main.c" "/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour/cmake-build-debug/CMakeFiles/Assignment1.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 
