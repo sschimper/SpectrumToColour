@@ -1,0 +1,3 @@
+/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/cmake-build-debug/CMakeFiles/Assignment1.dir
+/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/cmake-build-debug/CMakeFiles/edit_cache.dir
