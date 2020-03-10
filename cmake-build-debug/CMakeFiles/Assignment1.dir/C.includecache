@@ -6,15 +6,3 @@
 
 #IncludeRegexTransform: 
 
-/home/sebastian/MSc Computer Science/4th Semester/Assignments/Assignment1/SpectrumToColour/main.c
-stdio.h
--
-stdlib.h
--
-string.h
--
-stdbool.h
--
-ctype.h
--
-

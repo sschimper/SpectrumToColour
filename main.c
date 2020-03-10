@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <unistd.h>
 
 // ========================================================
 // Definition of the sizes of the tables used later
@@ -121,46 +122,39 @@ void addPairToTable(Table *table, const int wl, const double in)
         table->entries[slot] = createPair(wl, in);
         return;
     }
+
     Pair *prev;
     while(entry != NULL) {
-        // check key
-
         if(entry->wavelength == wl) {
-            return; // for now
+            return;
         }
-
         prev = entry;
         entry = prev->next;
     }
-
     prev->next = createPair(wl, in);
 }
 
-// free memory
-// takes a container as input argument
-void destoryTable(Pair *Pair) {
-    // TODO
+// destroy a chain stored at a slot of the table
+void destroyChain(struct node** head_ref)
+{
+    Pair* current = *head_ref;
+    Pair* next;
+    while (current != NULL) {
+        next = current->next;
+        free(current);
+        current = next;
+    }
+    *head_ref = NULL;
 }
 
-// helper function to print content of table
-void printTable(Table *table) {
+// destroy whole table
+void destroyTable(Table **table) {
     int i;
     for(i = 0; i < TABLE_SIZE; ++i) {
-        Pair *entry = table->entries[i];
-
-        if(entry == NULL)
-            continue;
-
-        for(;;) {
-            printf("%d %f\n", entry->wavelength, entry->intensity);
-
-            if(entry->next == NULL)
-                break;
-
-            entry = entry->next;
+        if(table[i] != NULL) {
+            destroyChain(table);
         }
     }
-    printf("\n");
 }
 
 // helper function to print content of table
@@ -174,36 +168,6 @@ void printFunction(Table *table) {
             printf("%d : %0.13f\n", i, thisIntensity);
         }
     }
-}
-
-// ========================================================
-// print a nice header
-// print a line when needed
-// ========================================================
-void printHeader() {
-    FILE *welcome_txt_file;
-    int c;
-    welcome_txt_file = fopen("../welcome.txt", "r");
-
-    if(welcome_txt_file == NULL) {
-        printf("Text file could not be loaded.\n");
-        return;
-    }
-
-    while((c = fgetc(welcome_txt_file)) != EOF) {
-        putchar(c);
-    }
-
-    fclose(welcome_txt_file);
-}
-
-void printLine() {
-    printf("-------------------------------------------------------------------------------------\n");
-}
-
-void printInstructions() {
-    printf("Please type 'h', 'H', 'help' or 'Help' to see a list of available "
-           "functions and \ncommands with an appropriate description.\n");
 }
 
 // ========================================================
@@ -233,10 +197,25 @@ void initDataContainers() {
 }
 
 // destroy all containers
-void destroyAllContainers() {
+void destroyAllTables() {
+    // luminaire data
+    destroyTable(cie_daylight);
+    destroyTable(cie_incandescent);
+    destroyTable(f11);
 
+    // reflectance data
+    destroyTable(xrite_e2);
+    destroyTable(xrite_f4);
+    destroyTable(xrite_g4);
+    destroyTable(xrite_h4);
+    destroyTable(xrite_j4);
+    destroyTable(xrite_a1);
+
+    // cie matching functions
+    destroyTable(cie_x);
+    destroyTable(cie_y);
+    destroyTable(cie_z);
 }
-
 
 void readFile(char* filename, Table* table) {
 
@@ -307,12 +286,97 @@ void readAllFiles() {
     readFile("../data/cie/cie_y.txt", cie_y);
     readFile("../data/cie/cie_z.txt", cie_z);
 }
+// ========================================================
+// the actual main part of this homework assignment
+// calculation and conversion from spectral information
+// to colour
+// ========================================================
+void rndWavelengthSampling(int num_samples) {
+    printf("rndWavelengthSampling was called with %d samples\n", num_samples);
+}
 
+void fxdWavelengthSampling(int num_samples) {
+    printf("fxdWavelengthSampling was called with %d samples\n", num_samples);
+}
+
+
+// ========================================================
+// print a nice header
+// print a line when needed
+// ========================================================
+void printHeader() {
+    FILE *welcome_txt_file;
+    int c;
+    welcome_txt_file = fopen("../welcome.txt", "r");
+
+    if(welcome_txt_file == NULL) {
+        printf("Text file could not be loaded.\n");
+        return;
+    }
+
+    while((c = fgetc(welcome_txt_file)) != EOF) {
+        putchar(c);
+    }
+
+    fclose(welcome_txt_file);
+}
+
+void printLine() {
+    printf("-------------------------------------------------------------------------------------\n");
+}
 // ========================================================
 // menu - parsing of user input commands
 // ========================================================
-void startMenu() {
+void printHelp() {
+    // print instructions
+    printf("Please start the program with one of the following arguments: \n"
+           "    -r n [for [r]andom wavelength sampling, where n is the number of samples]\n"
+           "    -f n [for [f]ixed wavelength sampling, where n is the number of samples]\n"
+           "    -h   [for printing this exact same text]\n");
+}
 
+// menu parsing
+void startMenu(int argc, char **argv) {
+    printHeader();
+    printLine();
+    int n;
+    int c;
+    opterr = 0;
+
+    // if no argument was typed, print help text and return
+    if (optind >= argc) {
+        printf ("Missing arguments.\n");
+        printHelp();
+        return;
+    }
+
+    while((c = getopt(argc, argv, "r:f:h")) != -1) {
+        switch(c) {
+            case 'h':
+                printHelp();
+                break;
+            case 'f':
+                n = atoi(optarg);
+                fxdWavelengthSampling(n);
+                break;
+            case 'r':
+                n = atoi(optarg);
+                rndWavelengthSampling(n);
+                break;
+            case '?':
+                if (optopt == 'c')
+                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+                else if (isprint (optopt))
+                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf (stderr,
+                             "Unknown option character `\\x%x'.\n",
+                             optopt);
+                return;
+            default:
+                abort();
+        }
+    }
 }
 
 // ========================================================
@@ -323,12 +387,10 @@ int main(int argc, char **argv) {
     initDataContainers();
     readAllFiles();
 
+    // start menu
+    startMenu(argc, argv);
 
-    printHeader();
-    printLine();
-    printInstructions();
-
-    printFunction(cie_y);
+    destroyAllTables();
 
     return 0;
 }
