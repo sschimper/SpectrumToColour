@@ -1,18 +1,28 @@
+// ======================================================================== //
+// SPECTRAL TO COLOUR CONVERTER                                             //
+// Calculates RGB values from spectral information.                         //
+//                                                                          //
+// Author: Sebastian Schimper                                               //
+// ======================================================================== //
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <unistd.h>
+#include <getopt.h>
+#include <math.h>
 
 // ========================================================
 // Definition of the sizes of the tables used later
 // Stuct for representing wavelength and intensity values
 // ========================================================
-#define TABLE_SIZE 80
+#define TABLE_SIZE 400
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
 #define VISIBLE_SPECTRUM_UPPER_BOUND 775
 #define NULL_DOUBLE -10000.0000
+#define PI 3.14159265
 
 // struct holding single wavelength-intensity-pair
 typedef struct Pair {
@@ -63,7 +73,6 @@ static Table *cie_z;
 // construct hash value
 unsigned int hash(const int wl) {
     int hash_value = 0;
-    int i;
     hash_value = wl * TABLE_SIZE + wl;
     return hash_value % TABLE_SIZE;
 }
@@ -170,6 +179,92 @@ void printFunction(Table *table) {
     }
 }
 
+// helper function to write a table to a txt file
+void printFunctionToFile(char* filename, Table *table) {
+
+    FILE * data_file = fopen(filename, "r");
+    if(data_file == NULL) {
+        data_file = fopen(filename, "a");
+        if(data_file == NULL) {
+            printf("Error: No file was found, and a new file couldn't be created.\n");
+            return;
+        }
+    }
+
+    int i;
+    for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
+        if(lookup(i, table) != NULL_DOUBLE) {
+            fprintf(data_file, "%3i %11f\n", i, lookup(i, table));
+        }
+    }
+    fclose(data_file);
+}
+
+// interploation, taken from here:
+// http://paulbourke.net/miscellaneous/interpolation/
+double cosineInterpolate(
+        double y1,double y2, int mu) {
+
+    double mu2 = (1 - cos(PI*mu))/2;
+    return(y1*(1-mu2)+y2*mu2);
+}
+
+void fillGap(Table* table, int x1, int x2, int middle, double y1, double y2) {
+    double newValue = cosineInterpolate(y1, y2, middle);
+
+    if(x2 - middle == 1 && middle - x1 == 1) {
+        if(lookup(middle, table) == NULL_DOUBLE)
+            addPairToTable(table, middle, newValue);
+        return;
+    }
+
+    addPairToTable(table, middle, newValue);
+
+    if(x2 - middle > 1) {
+        int quater2 = (middle + x2) / 2;
+        fillGap(table, middle, x2, quater2, newValue, y2);
+    }
+    if(middle - x1 > 1) {
+        int quater1 = (x1 + middle) / 2;
+        fillGap(table, x1, middle, quater1, y1, newValue);
+    }
+}
+
+// interpolate the function
+void interpolateFunction(Table *table) {
+    int i;
+    int j;
+    int prevInd;
+    int nextInd;
+
+    for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        if(lookup(i, table) == NULL_DOUBLE && i != VISIBLE_SPECTRUM_LOWER_BOUND) {
+            prevInd = i-1;
+            j = i;
+            while(lookup(j, table) == NULL_DOUBLE) {
+                j++;
+                if(lookup(j, table) != NULL_DOUBLE) {
+                    nextInd = j;
+                }
+            }
+            // j = i;
+            double y1 = lookup(prevInd, table);
+            double y2 = lookup(nextInd, table);
+
+            int middle = (prevInd + nextInd) / 2;
+            fillGap(table, prevInd, nextInd, middle, y1, y2);
+            // addPairToTable(table, middle, cosineInterpolate(y1, y2, middle));
+            /*
+            while(j != nextInd) {
+                addPairToTable(table, j, cosineInterpolate(y1, y2, j));
+                j++;
+            }
+            */
+            i = nextInd;
+        }
+    }
+}
+
 // ========================================================
 // prepossessing stuff: init tables and
 // read the pairs of wavelength and intensity
@@ -177,7 +272,7 @@ void printFunction(Table *table) {
 // shall be placed in
 // ========================================================
 // initialize all containers
-void initDataContainers() {
+void initDataContainers(void) {
     cie_incandescent = createTable();
     cie_daylight = createTable();
     f11 = createTable();
@@ -197,7 +292,7 @@ void initDataContainers() {
 }
 
 // destroy all containers
-void destroyAllTables() {
+void destroyAllTables(void) {
     // luminaire data
     destroyTable(cie_daylight);
     destroyTable(cie_incandescent);
@@ -220,7 +315,6 @@ void destroyAllTables() {
 void readFile(char* filename, Table* table) {
 
     FILE * data_file = fopen(filename, "r");
-
     if(data_file == NULL) {
         printf("File not found...\n");
         return;
@@ -267,11 +361,11 @@ void readFile(char* filename, Table* table) {
 }
 
 // do the above for all provided functions
-void readAllFiles() {
+void readAllFiles(void) {
     // luminaire data
-    readFile("../data/luminaire data/cie_incandescent.txt", cie_incandescent);
+    readFile("../data/luminaire data/cie_a.txt", cie_incandescent);
     readFile("../data/luminaire data/f11.txt", f11);
-    readFile("../data/luminaire data/cie_daylight.txt", cie_daylight);
+    readFile("../data/luminaire data/cie_d65.txt", cie_daylight);
 
     // reflection data
     readFile("../data/reflectance values/a1.txt", xrite_a1);
@@ -291,12 +385,16 @@ void readAllFiles() {
 // calculation and conversion from spectral information
 // to colour
 // ========================================================
-void rndWavelengthSampling(int num_samples) {
-    printf("rndWavelengthSampling was called with %d samples\n", num_samples);
+void rndWavelengthSampling(int num_samples, char* l_func, char* r_func) {
+    printf("rndWavelengthSampling was called with %d samples,\n"
+           "luminare function is %s,\n"
+           "refl function is %s.\n", num_samples, l_func, r_func);
 }
 
-void fxdWavelengthSampling(int num_samples) {
-    printf("fxdWavelengthSampling was called with %d samples\n", num_samples);
+void fxdWavelengthSampling(int num_samples, char* l_func, char* r_func) {
+    printf("fxdWavelengthSampling was called with %d samples,\n"
+           "luminare function is %s,\n"
+           "refl function is %s.\n", num_samples, l_func, r_func);
 }
 
 
@@ -304,7 +402,7 @@ void fxdWavelengthSampling(int num_samples) {
 // print a nice header
 // print a line when needed
 // ========================================================
-void printHeader() {
+void printHeader(void) {
     FILE *welcome_txt_file;
     int c;
     welcome_txt_file = fopen("../welcome.txt", "r");
@@ -321,18 +419,20 @@ void printHeader() {
     fclose(welcome_txt_file);
 }
 
-void printLine() {
+void printLine(void) {
     printf("-------------------------------------------------------------------------------------\n");
 }
 // ========================================================
 // menu - parsing of user input commands
 // ========================================================
-void printHelp() {
+void printHelp(void) {
     // print instructions
-    printf("Please start the program with one of the following arguments: \n"
-           "    -r n [for [r]andom wavelength sampling, where n is the number of samples]\n"
-           "    -f n [for [f]ixed wavelength sampling, where n is the number of samples]\n"
-           "    -h   [for printing this exact same text]\n");
+    printf("Available Options: \n"
+           "    --rnd n                  (for [r]andom wavelength sampling, where n is the number of samples)\n"
+           "    --fxd n                  (for [f]ixed wavelength sampling, where n is the number of samples)\n"
+           "    -l [ciea/cied/f11]       (for [l]uminaire data, default = ciea)\n"
+           "    -r [a1/e2/f4/g4/h4/j4]   (for [r]eflectance data, default = a1)\n"
+           "    -h                       (for printing this exact same text)\n");
 }
 
 // menu parsing
@@ -341,41 +441,130 @@ void startMenu(int argc, char **argv) {
     printLine();
     int n;
     int c;
-    opterr = 0;
+    // opterr = 0;
 
+    /*
     // if no argument was typed, print help text and return
     if (optind >= argc) {
         printf ("Missing arguments.\n");
         printHelp();
         return;
     }
+     */
 
-    while((c = getopt(argc, argv, "r:f:h")) != -1) {
-        switch(c) {
+    // if this flag is set, do random wavelength sampling
+    // else, do fixed bucket sampling
+    static int rnd_flag;
+
+    char refl_function_name[2] = "";
+    char lum_function_name[4] = "";
+
+    // start menu
+    while(1) {
+
+        static struct option long_options[] =
+                {
+                        /* These options set a flag. */
+                        {"rnd", required_argument,     &rnd_flag, 1},
+                        {"fxd", required_argument,     &rnd_flag, 0},
+                        /* These options don’t set a flag.
+                           We distinguish them by their indices. */
+                        {"help",     no_argument,      0, 'h'},
+                        {"liminaire",  required_argument, 0, 'l'},
+                        {"reflectance",  required_argument, 0, 'r'},
+                        {0, 0, 0, 0}
+                };
+        int option_index = 0;
+
+        c = getopt_long (argc, argv, "hl:r:", long_options, &option_index);
+
+        if(c == -1)
+            break;
+
+        switch (c)
+        {
+            case 0:
+                /* If this option set a flag, do nothing else now. */
+                //if (long_options[option_index].flag != 0)
+                    //break;
+                printf ("option %s with value `%s'\n", long_options[option_index].name, optarg);
+                if (!optarg)
+                    printf ("Missing Argument: Please submit an integer value for the amount of samples.\n");
+                else {
+                    n = atoi(optarg);
+                    if(long_options[option_index].name == "rnd")
+                        rnd_flag = 1;
+                    else if(long_options[option_index].name == "fxd")
+                        rnd_flag = 0;
+                }
+                break;
+
             case 'h':
                 printHelp();
                 break;
-            case 'f':
-                n = atoi(optarg);
-                fxdWavelengthSampling(n);
+
+            case 'l':
+                printf ("option -l with value `%s'\n", optarg);
+                strcpy(lum_function_name, optarg);
                 break;
+
             case 'r':
-                n = atoi(optarg);
-                rndWavelengthSampling(n);
+                printf ("option -r with value `%s'\n", optarg);
+                strcpy(refl_function_name, optarg);
                 break;
+
             case '?':
-                if (optopt == 'c')
-                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-                else if (isprint (optopt))
-                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-                else
-                    fprintf (stderr,
-                             "Unknown option character `\\x%x'.\n",
-                             optopt);
-                return;
+                /* getopt_long already printed an error message. */
+                printf("Something went wrong ... Here's some help:\n");
+                printHelp();
+                break;
+
             default:
-                abort();
+                abort ();
         }
+
+        if(refl_function_name[0] == '\0') {
+            strcpy(refl_function_name, "a1");
+        }
+        if(lum_function_name[0] == '\0') {
+            strcpy(lum_function_name, "ciea");
+        }
+
+        int result = strcmp(refl_function_name, "a1");
+
+        /*
+        if(strcmp(refl_function_name, "a1") != 0 && strcmp(refl_function_name, "e2") != 0
+           && strcmp(refl_function_name, "f4") != 0 && strcmp(refl_function_name, "g4") != 0
+           && strcmp(refl_function_name, "h4") != 0 && strcmp(refl_function_name, "j4") != 0)
+        {
+            printf("Error: Provided function name for Reflectance function does not"
+                   "match the ones, specified by the program.\n");
+            break;
+        }
+        if(strcmp(refl_function_name, "ciea") != 0 && strcmp(refl_function_name, "cied") != 0
+                && strcmp(refl_function_name, "f11") != 0)
+        {
+            printf("Error: Provided function name for Luminaire function does not"
+                   "match the ones, specified by the program.\n");
+            break;
+        }
+         */
+
+        if(rnd_flag == 0) {
+            fxdWavelengthSampling(n, lum_function_name, refl_function_name);
+        }
+        else if(rnd_flag == 1) {
+            rndWavelengthSampling(n, lum_function_name, refl_function_name);
+        }
+
+    } // end while loop
+
+    if (optind < argc)
+    {
+        printf ("non-option ARGV-elements: ");
+        while (optind < argc)
+            printf ("%s ", argv[optind++]);
+        putchar ('\n');
     }
 }
 
@@ -389,7 +578,6 @@ int main(int argc, char **argv) {
 
     // start menu
     startMenu(argc, argv);
-
     destroyAllTables();
 
     return 0;
