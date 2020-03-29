@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <getopt.h>
 #include <math.h>
+#include <assert.h>
 
 // ========================================================
 // Definition of the sizes of the tables used later
@@ -20,21 +21,41 @@
 // ========================================================
 #define TABLE_SIZE 400
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
-#define VISIBLE_SPECTRUM_UPPER_BOUND 775
-#define NULL_DOUBLE -10000.0000
+#define VISIBLE_SPECTRUM_UPPER_BOUND 780
+#define EMEMENT_COUNT_MAX 30
+// #define NULL_DOUBLE -10000.0000
 #define PI 3.14159265
 
 // struct holding single wavelength-intensity-pair
-typedef struct Pair {
-    int wavelength;
+typedef struct node{
+    float wavelength;
     double intensity;
-    struct Pair *next;
-} Pair;
+    struct node *next;
+};
 
-// struct holding multiple pairs
-typedef struct {
-    Pair **entries;
-} Table;
+typedef struct hash {
+    struct node *head;
+    int count;
+};
+
+
+// luminaire data containers
+struct hash *cie_incandescent = NULL;
+struct hash *cie_daylight = NULL;
+struct hash *f11 = NULL;
+
+// reflectance data containers
+struct hash *xrite_e2 = NULL;
+struct hash *xrite_f4 = NULL;
+struct hash *xrite_g4 = NULL;
+struct hash *xrite_h4 = NULL;
+struct hash *xrite_j4 = NULL;
+struct hash *xrite_a1 = NULL;
+
+// cie matching functions container
+struct hash *cie_x = NULL;
+struct hash *cie_y = NULL;
+struct hash *cie_z = NULL;
 
 // ========================================================
 // GLOBAL VARIABLES
@@ -48,139 +69,100 @@ const float transformation_matrix[3][3] = {
         {0.0556, -0.2050, 1.0570}
 };
 
-// luminaire data containers
-static Table *cie_incandescent;
-static Table *cie_daylight;
-static Table *f11;
 
-// reflectance data containers
-static Table *xrite_e2;
-static Table *xrite_f4;
-static Table *xrite_g4;
-static Table *xrite_h4;
-static Table *xrite_j4;
-static Table *xrite_a1;
-
-// cie matching functions container
-static Table *cie_x;
-static Table *cie_y;
-static Table *cie_z;
 
 // ========================================================
 // DICTIONARY DATA STRUCTURE stuff
-// got a little help from here: https://www.youtube.com/watch?v=wg8hZxMRwcw&t=466s
 // ========================================================
 // construct hash value
-unsigned int hash(const int wl) {
-    int hash_value = 0;
-    hash_value = wl * TABLE_SIZE + wl;
-    return hash_value % TABLE_SIZE;
+// simply convert float to int
+unsigned int getHashIndex(const float wl) {
+    int wl_int = wl;
+    assert(wl_int >= VISIBLE_SPECTRUM_LOWER_BOUND && wl_int <= VISIBLE_SPECTRUM_UPPER_BOUND);
+    return wl_int;
 }
 
-// create the table
-Table *createTable(void) {
-    // allocate
-    Table *table = (Table*)malloc(sizeof(Table) * 1);
+// create one node
+struct node *createNode(const float wl, const double in) {
+    struct node *newNode;
+    newNode = (struct node *)malloc(sizeof(struct node));
+    newNode->wavelength = wl;
+    newNode->intensity = in;
+    newNode->next = NULL;
 
-    // allocate table entries
-    table->entries = (Pair**)malloc(sizeof(Pair*) * TABLE_SIZE);
-
-    // set each entry to null
-    int i;
-    for(i = 0; i < TABLE_SIZE; ++i)
-        table->entries[i] = NULL;
-
-    return table;
+    return newNode;
 }
 
-// create one pair
-Pair *createPair(const int wl, const double in) {
-    Pair *pair = (Pair *)malloc(sizeof(pair) * 1);
-    pair->wavelength = wl;
-    pair->intensity = in; // NO MEMORY ALLOC !!!!
+// add a pair struct to the container
+// got a little help from this post:
+// http://see-programming.blogspot.com/2013/05/chain-hashing-separate-chaining-with.html
+void addNodeToTable(struct hash *table, const float wl, const double in)
+{
+    unsigned int slot = getHashIndex(wl);
+    struct node *newNode = createNode(wl, in);
 
-    return pair;
+    // check head of bucket list
+    if(!table[slot].head) {
+        table[slot].head = newNode;
+        table[slot].count = 1;
+        return;
+    }
+
+    // add new node to the list and update head
+    newNode->next = (table[slot].head);
+    table[slot].head = newNode;
+    table[slot].count++;
+
+    return;
 }
 
 // look up a wavelength and get the corresponding intensity
 // takes value and container as input arguments
-double lookup(const int wl, Table *table) {
-    unsigned int slot = hash(wl);
-    Pair *entry = table->entries[slot];
+bool lookup(struct hash *table, const float wl) {
+    unsigned int slot = getHashIndex(wl);
+    struct node *wantedNode;
+    wantedNode = table[slot].head;
 
-    if(entry == NULL) {
-        return NULL_DOUBLE;
+    if(!wantedNode) {
+        printf("Search element unavailable in hash table\n");
+        return false;
     }
 
-    while(entry != NULL) {
-        if(entry->wavelength == wl) {
-            return entry->intensity;
+    while(wantedNode != NULL) {
+        if(wantedNode->wavelength == wl) {
+            return true;
         }
-        entry = entry->next;
-    }
-    return NULL_DOUBLE;
-}
-
-// add a pair struct to the container
-void addPairToTable(Table *table, const int wl, const double in)
-{
-    unsigned int slot = hash(wl);
-    Pair *entry = table->entries[slot];
-
-    if(entry == NULL) {
-        table->entries[slot] = createPair(wl, in);
-        return;
+        wantedNode = wantedNode->next;
     }
 
-    Pair *prev;
-    while(entry != NULL) {
-        if(entry->wavelength == wl) {
-            return;
-        }
-        prev = entry;
-        entry = prev->next;
-    }
-    prev->next = createPair(wl, in);
-}
-
-// destroy a chain stored at a slot of the table
-void destroyChain(struct node** head_ref)
-{
-    Pair* current = *head_ref;
-    Pair* next;
-    while (current != NULL) {
-        next = current->next;
-        free(current);
-        current = next;
-    }
-    *head_ref = NULL;
-}
-
-// destroy whole table
-void destroyTable(Table **table) {
-    int i;
-    for(i = 0; i < TABLE_SIZE; ++i) {
-        if(table[i] != NULL) {
-            destroyChain(table);
-        }
-    }
+    return false;
 }
 
 // helper function to print content of table
-void printFunction(Table *table) {
+void printFunction(struct hash *table) {
+    struct node *myNode;
     int i;
-    for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
-        double thisIntensity = lookup(i, table);
-
-        if (thisIntensity != NULL_DOUBLE)
-        {
-            printf("%d : %0.13f\n", i, thisIntensity);
+    for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        if (table[i].count == 0)
+            continue;
+        myNode = table[i].head;
+        if (!myNode)
+            continue;
+        printf("\nData at index %d in Hash Table:\n", i);
+        printf("Wavel           Intens\n");
+        printf("----------------------\n");
+        while (myNode != NULL) {
+            printf("%.6f      ", myNode->wavelength);
+            printf("%.6f\n", myNode->intensity);
+            myNode = myNode->next;
         }
     }
+    return;
 }
 
+/*
 // helper function to write a table to a txt file
-void printFunctionToFile(char* filename, Table *table) {
+void printFunctionToFile(char* filename, struct hash *table) {
 
     FILE * data_file = fopen(filename, "r");
     if(data_file == NULL) {
@@ -191,80 +173,14 @@ void printFunctionToFile(char* filename, Table *table) {
         }
     }
 
-    int i;
-    for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
+    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
         if(lookup(i, table) != NULL_DOUBLE) {
             fprintf(data_file, "%3i %11f\n", i, lookup(i, table));
         }
     }
     fclose(data_file);
 }
-
-// interploation, taken from here:
-// http://paulbourke.net/miscellaneous/interpolation/
-double cosineInterpolate(
-        double y1,double y2, int mu) {
-
-    double mu2 = (1 - cos(PI*mu))/2;
-    return(y1*(1-mu2)+y2*mu2);
-}
-
-void fillGap(Table* table, int x1, int x2, int middle, double y1, double y2) {
-    double newValue = cosineInterpolate(y1, y2, middle);
-
-    if(x2 - middle == 1 && middle - x1 == 1) {
-        if(lookup(middle, table) == NULL_DOUBLE)
-            addPairToTable(table, middle, newValue);
-        return;
-    }
-
-    addPairToTable(table, middle, newValue);
-
-    if(x2 - middle > 1) {
-        int quater2 = (middle + x2) / 2;
-        fillGap(table, middle, x2, quater2, newValue, y2);
-    }
-    if(middle - x1 > 1) {
-        int quater1 = (x1 + middle) / 2;
-        fillGap(table, x1, middle, quater1, y1, newValue);
-    }
-}
-
-// interpolate the function
-void interpolateFunction(Table *table) {
-    int i;
-    int j;
-    int prevInd;
-    int nextInd;
-
-    for(i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-        if(lookup(i, table) == NULL_DOUBLE && i != VISIBLE_SPECTRUM_LOWER_BOUND) {
-            prevInd = i-1;
-            j = i;
-            while(lookup(j, table) == NULL_DOUBLE) {
-                j++;
-                if(lookup(j, table) != NULL_DOUBLE) {
-                    nextInd = j;
-                }
-            }
-            // j = i;
-            double y1 = lookup(prevInd, table);
-            double y2 = lookup(nextInd, table);
-
-            int middle = (prevInd + nextInd) / 2;
-            fillGap(table, prevInd, nextInd, middle, y1, y2);
-            // addPairToTable(table, middle, cosineInterpolate(y1, y2, middle));
-            /*
-            while(j != nextInd) {
-                addPairToTable(table, j, cosineInterpolate(y1, y2, j));
-                j++;
-            }
-            */
-            i = nextInd;
-        }
-    }
-}
-
+*/
 // ========================================================
 // prepossessing stuff: init tables and
 // read the pairs of wavelength and intensity
@@ -273,24 +189,27 @@ void interpolateFunction(Table *table) {
 // ========================================================
 // initialize all containers
 void initDataContainers(void) {
-    cie_incandescent = createTable();
-    cie_daylight = createTable();
-    f11 = createTable();
+    cie_incandescent = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    cie_daylight = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    f11 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    /*
 
 // reflectance data containers
-    xrite_e2 = createTable();
-    xrite_f4 = createTable();
-    xrite_g4 = createTable();
-    xrite_h4 = createTable();
-    xrite_j4 = createTable();
-    xrite_a1 = createTable();
+    xrite_e2 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_f4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_g4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_h4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_j4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_a1 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
 
 // cie matching functions container
-    cie_x  = createTable();
-    cie_y = createTable();
-    cie_z = createTable();
+    cie_x = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    cie_y = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    cie_z = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+     */
 }
 
+/*
 // destroy all containers
 void destroyAllTables(void) {
     // luminaire data
@@ -311,8 +230,9 @@ void destroyAllTables(void) {
     destroyTable(cie_y);
     destroyTable(cie_z);
 }
+ */
 
-void readFile(char* filename, Table* table) {
+void readFile(char* filename, struct hash* table) {
 
     FILE * data_file = fopen(filename, "r");
     if(data_file == NULL) {
@@ -336,13 +256,13 @@ void readFile(char* filename, Table* table) {
             column_crossed = false;
 
             // get int value
-            int wl = atoi(int_c) / 10; // don't know why, but works
+            int wl = atoi(int_c)/ 10; // don't know why, but works
 
             // get float value
             double in = atof(float_c);
 
             // assign and reset
-            addPairToTable(table, wl, in);
+            addNodeToTable(table, wl, in);
             slot_index++;
             int_count = 0;
             float_count = 0;
@@ -364,6 +284,8 @@ void readFile(char* filename, Table* table) {
 void readAllFiles(void) {
     // luminaire data
     readFile("../data/luminaire data/cie_a.txt", cie_incandescent);
+
+    /*
     readFile("../data/luminaire data/f11.txt", f11);
     readFile("../data/luminaire data/cie_d65.txt", cie_daylight);
 
@@ -379,6 +301,7 @@ void readAllFiles(void) {
     readFile("../data/cie/cie_x.txt", cie_x);
     readFile("../data/cie/cie_y.txt", cie_y);
     readFile("../data/cie/cie_z.txt", cie_z);
+     */
 }
 // ========================================================
 // the actual main part of this homework assignment
@@ -572,13 +495,17 @@ void startMenu(int argc, char **argv) {
 // main function
 // ========================================================
 int main(int argc, char **argv) {
-    // prepossessing stuff
+    //prepossessing stuff
     initDataContainers();
     readAllFiles();
 
+    addNodeToTable(cie_incandescent, 380.5, 0.42);
+    addNodeToTable(cie_incandescent, 380.75, 0.4242);
+    printFunction(cie_incandescent);
+
     // start menu
     startMenu(argc, argv);
-    destroyAllTables();
+    // destroyAllTables();
 
     return 0;
 }

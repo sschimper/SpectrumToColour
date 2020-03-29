@@ -6,3 +6,21 @@
 
 #IncludeRegexTransform: 
 
+/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour/main.c
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+stdbool.h
+-
+ctype.h
+-
+getopt.h
+-
+math.h
+-
+assert.h
+-
+
