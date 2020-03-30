@@ -4,8 +4,6 @@
 //                                                                          //
 // Author: Sebastian Schimper                                               //
 // ======================================================================== //
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +21,6 @@
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
 #define VISIBLE_SPECTRUM_UPPER_BOUND 780
 #define EMEMENT_COUNT_MAX 30
-// #define NULL_DOUBLE -10000.0000
 #define PI 3.14159265
 
 // struct holding single wavelength-intensity-pair
@@ -93,13 +90,10 @@ struct node *createNode(const float wl, const double in) {
     return newNode;
 }
 
-// add a pair struct to the container
-// got a little help from this post:
-// http://see-programming.blogspot.com/2013/05/chain-hashing-separate-chaining-with.html
-void addNodeToTable(struct hash *table, const float wl, const double in)
-{
+// partially stolen from here: https://www.geeksforgeeks.org/insertion-sort-for-singly-linked-list/
+void addNodeToTable(struct hash *table, const float wl, const double in) {
     unsigned int slot = getHashIndex(wl);
-    struct node *newNode = createNode(wl, in);
+    struct node* newNode = createNode(wl, in);
 
     // check head of bucket list
     if(!table[slot].head) {
@@ -109,11 +103,32 @@ void addNodeToTable(struct hash *table, const float wl, const double in)
     }
 
     // add new node to the list and update head
+    struct node **head_ref = &table[slot].head;
+    struct node *current;
+    /* Special case for the head end */
+    if ((*head_ref) == NULL || (*head_ref)->wavelength >= newNode->wavelength)
+    {
+        newNode->next = head_ref;
+        *head_ref = newNode;
+    }
+    else
+    {
+        /* Locate the node before the point of insertion */
+        current = *head_ref;
+        while (current->next!=NULL &&
+               current->next->wavelength < newNode->wavelength)
+        {
+            current = current->next;
+        }
+        newNode->next = current->next;
+        current->next = newNode;
+    }
+    table[slot].count++;
+    /*
     newNode->next = (table[slot].head);
     table[slot].head = newNode;
     table[slot].count++;
-
-    return;
+     */
 }
 
 // look up a wavelength and get the corresponding intensity
@@ -136,6 +151,59 @@ bool lookup(struct hash *table, const float wl) {
     }
 
     return false;
+}
+
+// stolen from here: http://see-programming.blogspot.com/2013/05/chain-hashing-separate-chaining-with.html
+void deleteFromHash(struct hash *table, const float wl) {
+    int flag = 0;
+    unsigned int slot = getHashIndex(wl);
+    struct node *temp, *currentNode;
+    /* get the list head from current bucket */
+    currentNode = table[slot].head;
+    if (!currentNode) {
+        printf("Given data is not present in hash Table!!\n");
+        return;
+    }
+    temp = currentNode;
+    while (currentNode != NULL) {
+        /* delete the node with given key */
+        if (currentNode->wavelength == wl) {
+            flag = 1;
+            if (currentNode == table[slot].head)
+                table[slot].head = currentNode->next;
+            else
+                temp->next = currentNode->next;
+
+            table[slot].count--;
+            free(currentNode);
+            break;
+        }
+        temp = currentNode;
+        currentNode = currentNode->next;
+    }
+    if (flag)
+        printf("Data with WL %.3f deleted successfully from Hash Table\n", wl);
+    else
+        printf("Given data with WL %.3f is not present in hash Table!!!!\n", wl);
+    return;
+}
+
+// delete whole table
+void deleteTable(struct hash *table) {
+    struct node *currentNode;
+    int i;
+    for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        if (table[i].count == 0)
+            continue;
+        currentNode = table[i].head;
+        if (!currentNode)
+            continue;
+        while (currentNode != NULL) {
+            deleteFromHash(table, currentNode->wavelength);
+            currentNode = currentNode->next;
+        }
+    }
+    return;
 }
 
 // helper function to print content of table
@@ -209,29 +277,7 @@ void initDataContainers(void) {
      */
 }
 
-/*
-// destroy all containers
-void destroyAllTables(void) {
-    // luminaire data
-    destroyTable(cie_daylight);
-    destroyTable(cie_incandescent);
-    destroyTable(f11);
-
-    // reflectance data
-    destroyTable(xrite_e2);
-    destroyTable(xrite_f4);
-    destroyTable(xrite_g4);
-    destroyTable(xrite_h4);
-    destroyTable(xrite_j4);
-    destroyTable(xrite_a1);
-
-    // cie matching functions
-    destroyTable(cie_x);
-    destroyTable(cie_y);
-    destroyTable(cie_z);
-}
- */
-
+// read filenames
 void readFile(char* filename, struct hash* table) {
 
     FILE * data_file = fopen(filename, "r");
@@ -303,6 +349,26 @@ void readAllFiles(void) {
     readFile("../data/cie/cie_z.txt", cie_z);
      */
 }
+
+void deleteAllTables(void) {
+    deleteTable(cie_incandescent);
+
+    /*
+    deleteTable(cie_daylight);
+    deleteTable(f11);
+
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+    deleteTable(cie_incandescent);
+     */
+}
 // ========================================================
 // the actual main part of this homework assignment
 // calculation and conversion from spectral information
@@ -362,18 +428,6 @@ void printHelp(void) {
 void startMenu(int argc, char **argv) {
     printHeader();
     printLine();
-    int n;
-    int c;
-    // opterr = 0;
-
-    /*
-    // if no argument was typed, print help text and return
-    if (optind >= argc) {
-        printf ("Missing arguments.\n");
-        printHelp();
-        return;
-    }
-     */
 
     // if this flag is set, do random wavelength sampling
     // else, do fixed bucket sampling
@@ -381,10 +435,11 @@ void startMenu(int argc, char **argv) {
 
     char refl_function_name[2] = "";
     char lum_function_name[4] = "";
+    int n = NULL; // samples
+    int c;
 
     // start menu
     while(1) {
-
         static struct option long_options[] =
                 {
                         /* These options set a flag. */
@@ -410,7 +465,6 @@ void startMenu(int argc, char **argv) {
                 /* If this option set a flag, do nothing else now. */
                 //if (long_options[option_index].flag != 0)
                     //break;
-                printf ("option %s with value `%s'\n", long_options[option_index].name, optarg);
                 if (!optarg)
                     printf ("Missing Argument: Please submit an integer value for the amount of samples.\n");
                 else {
@@ -427,12 +481,10 @@ void startMenu(int argc, char **argv) {
                 break;
 
             case 'l':
-                printf ("option -l with value `%s'\n", optarg);
                 strcpy(lum_function_name, optarg);
                 break;
 
             case 'r':
-                printf ("option -r with value `%s'\n", optarg);
                 strcpy(refl_function_name, optarg);
                 break;
 
@@ -445,41 +497,6 @@ void startMenu(int argc, char **argv) {
             default:
                 abort ();
         }
-
-        if(refl_function_name[0] == '\0') {
-            strcpy(refl_function_name, "a1");
-        }
-        if(lum_function_name[0] == '\0') {
-            strcpy(lum_function_name, "ciea");
-        }
-
-        int result = strcmp(refl_function_name, "a1");
-
-        /*
-        if(strcmp(refl_function_name, "a1") != 0 && strcmp(refl_function_name, "e2") != 0
-           && strcmp(refl_function_name, "f4") != 0 && strcmp(refl_function_name, "g4") != 0
-           && strcmp(refl_function_name, "h4") != 0 && strcmp(refl_function_name, "j4") != 0)
-        {
-            printf("Error: Provided function name for Reflectance function does not"
-                   "match the ones, specified by the program.\n");
-            break;
-        }
-        if(strcmp(refl_function_name, "ciea") != 0 && strcmp(refl_function_name, "cied") != 0
-                && strcmp(refl_function_name, "f11") != 0)
-        {
-            printf("Error: Provided function name for Luminaire function does not"
-                   "match the ones, specified by the program.\n");
-            break;
-        }
-         */
-
-        if(rnd_flag == 0) {
-            fxdWavelengthSampling(n, lum_function_name, refl_function_name);
-        }
-        else if(rnd_flag == 1) {
-            rndWavelengthSampling(n, lum_function_name, refl_function_name);
-        }
-
     } // end while loop
 
     if (optind < argc)
@@ -488,6 +505,13 @@ void startMenu(int argc, char **argv) {
         while (optind < argc)
             printf ("%s ", argv[optind++]);
         putchar ('\n');
+    }
+
+    if(rnd_flag == 0) {
+        fxdWavelengthSampling(n, lum_function_name, refl_function_name);
+    }
+    else if(rnd_flag == 1) {
+        rndWavelengthSampling(n, lum_function_name, refl_function_name);
     }
 }
 
@@ -499,13 +523,10 @@ int main(int argc, char **argv) {
     initDataContainers();
     readAllFiles();
 
-    addNodeToTable(cie_incandescent, 380.5, 0.42);
-    addNodeToTable(cie_incandescent, 380.75, 0.4242);
-    printFunction(cie_incandescent);
 
     // start menu
     startMenu(argc, argv);
-    // destroyAllTables();
+    deleteAllTables();
 
     return 0;
 }
