@@ -16,7 +16,7 @@
 // Definition of the sizes of the tables used later
 // Stuct for representing wavelength and intensity values
 // ========================================================
-#define TABLE_SIZE 400
+#define TABLE_SIZE 401
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
 #define VISIBLE_SPECTRUM_UPPER_BOUND 780
 #define EMEMENT_COUNT_MAX 30
@@ -301,8 +301,7 @@ void readFile(char* filename, struct hash* table) {
             // get float value
             double in = atof(float_c);
 
-            // assign and reset
-            printf("Wl: %d\n", wl);
+            // assign 
             addNodeToTable(table, wl, in);
             slot_index++;
             int_count = 0;
@@ -317,7 +316,6 @@ void readFile(char* filename, struct hash* table) {
             float_count++;
         }
     }
-
     fclose(data_file);
 }
 
@@ -325,8 +323,8 @@ void readFile(char* filename, struct hash* table) {
 void readAllFiles(void) {
     // luminaire data
     readFile("../data/luminaire data/cie_a.txt", cie_incandescent);
-    readFile("../data/luminaire data/f11.txt", f11);
     readFile("../data/luminaire data/cie_d65.txt", cie_daylight);
+    readFile("../data/luminaire data/f11.txt", f11);
 
     /*
     // reflection data
@@ -519,7 +517,7 @@ int main(int argc, char **argv) {
 
     // start menu
     startMenu(argc, argv);
-    deleteAllTables();
+    // deleteAllTables();
 
     return 0;
 }
