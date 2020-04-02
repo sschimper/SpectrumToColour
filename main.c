@@ -73,7 +73,7 @@ const float transformation_matrix[3][3] = {
 unsigned int getHashIndex(const float wl) {
     int wl_int = wl;
     assert(wl_int >= VISIBLE_SPECTRUM_LOWER_BOUND && wl_int <= VISIBLE_SPECTRUM_UPPER_BOUND);
-    return wl_int;
+    return wl_int - VISIBLE_SPECTRUM_LOWER_BOUND;
 }
 
 // create one node
@@ -185,9 +185,10 @@ void deleteTable(struct hash *table) {
     struct node *currentNode;
     int i;
     for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-        if (table[i].count == 0)
+        const unsigned int slot = getHashIndex(i);
+        if (table[slot].count == 0)
             continue;
-        currentNode = table[i].head;
+        currentNode = table[slot].head;
         if (!currentNode)
             continue;
         while (currentNode != NULL) {
@@ -202,10 +203,11 @@ void deleteTable(struct hash *table) {
 void printFunction(struct hash *table) {
     struct node *myNode;
     int i;
-    for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-        if (table[i].count == 0)
+		for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+			  const unsigned int slot = getHashIndex(i);
+        if (table[slot].count == 0)
             continue;
-        myNode = table[i].head;
+        myNode = table[slot].head;
         if (!myNode)
             continue;
         printf("\nData at index %d in Hash Table:\n", i);
