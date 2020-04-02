@@ -3,6 +3,6 @@ project(Assignment1 C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(Assignment1 main.c)
+add_executable(spectocol main.c)
 
-target_link_libraries(Assignment1 m)
+target_link_libraries(spectocol m)

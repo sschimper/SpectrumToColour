@@ -48,10 +48,10 @@ RM = /snap/clion/107/bin/cmake/linux/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour"
+CMAKE_SOURCE_DIR = "/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour"
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour/cmake-build-debug"
+CMAKE_BINARY_DIR = "/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/cmake-build-debug"
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -80,9 +80,9 @@ edit_cache/fast: edit_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour/cmake-build-debug/CMakeFiles" "/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour/cmake-build-debug/CMakeFiles/progress.marks"
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles" "/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles/progress.marks"
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start "/home/sebastian/MSc Computer Science/4th Semester/Spectral Rendering/SpectrumToColour/cmake-build-debug/CMakeFiles" 0
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles" 0
 .PHONY : all
 
 # The main clean target
@@ -111,17 +111,17 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named Assignment1
+# Target rules for targets named spectocol
 
 # Build rule for target.
-Assignment1: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 Assignment1
-.PHONY : Assignment1
+spectocol: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 spectocol
+.PHONY : spectocol
 
 # fast build rule for target.
-Assignment1/fast:
-	$(MAKE) -f CMakeFiles/Assignment1.dir/build.make CMakeFiles/Assignment1.dir/build
-.PHONY : Assignment1/fast
+spectocol/fast:
+	$(MAKE) -f CMakeFiles/spectocol.dir/build.make CMakeFiles/spectocol.dir/build
+.PHONY : spectocol/fast
 
 main.o: main.c.o
 
@@ -129,7 +129,7 @@ main.o: main.c.o
 
 # target to build an object file
 main.c.o:
-	$(MAKE) -f CMakeFiles/Assignment1.dir/build.make CMakeFiles/Assignment1.dir/main.c.o
+	$(MAKE) -f CMakeFiles/spectocol.dir/build.make CMakeFiles/spectocol.dir/main.c.o
 .PHONY : main.c.o
 
 main.i: main.c.i
@@ -138,7 +138,7 @@ main.i: main.c.i
 
 # target to preprocess a source file
 main.c.i:
-	$(MAKE) -f CMakeFiles/Assignment1.dir/build.make CMakeFiles/Assignment1.dir/main.c.i
+	$(MAKE) -f CMakeFiles/spectocol.dir/build.make CMakeFiles/spectocol.dir/main.c.i
 .PHONY : main.c.i
 
 main.s: main.c.s
@@ -147,7 +147,7 @@ main.s: main.c.s
 
 # target to generate assembly for a file
 main.c.s:
-	$(MAKE) -f CMakeFiles/Assignment1.dir/build.make CMakeFiles/Assignment1.dir/main.c.s
+	$(MAKE) -f CMakeFiles/spectocol.dir/build.make CMakeFiles/spectocol.dir/main.c.s
 .PHONY : main.c.s
 
 # Help Target
@@ -157,7 +157,7 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... rebuild_cache"
-	@echo "... Assignment1"
+	@echo "... spectocol"
 	@echo "... edit_cache"
 	@echo "... main.o"
 	@echo "... main.i"

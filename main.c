@@ -10,7 +10,6 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <getopt.h>
-#include <math.h>
 #include <assert.h>
 
 // ========================================================
@@ -28,12 +27,12 @@ typedef struct node{
     float wavelength;
     double intensity;
     struct node *next;
-};
+} node;
 
 typedef struct hash {
     struct node *head;
     int count;
-};
+} hash;
 
 
 // luminaire data containers
@@ -65,8 +64,6 @@ const float transformation_matrix[3][3] = {
         {-0.9692, 1.8760, 0.0416},
         {0.0556, -0.2050, 1.0570}
 };
-
-
 
 // ========================================================
 // DICTIONARY DATA STRUCTURE stuff
@@ -124,11 +121,6 @@ void addNodeToTable(struct hash *table, const float wl, const double in) {
         current->next = newNode;
     }
     table[slot].count++;
-    /*
-    newNode->next = (table[slot].head);
-    table[slot].head = newNode;
-    table[slot].count++;
-     */
 }
 
 // look up a wavelength and get the corresponding intensity
@@ -287,8 +279,8 @@ void readFile(char* filename, struct hash* table) {
     }
 
     char ch;
-    char int_c[3] = "";
-    char float_c[11] = "";
+    char int_c[255] = "";
+    char float_c[255] = "";
 
     int int_count = 0;
     int float_count = 0;
@@ -302,7 +294,7 @@ void readFile(char* filename, struct hash* table) {
             column_crossed = false;
 
             // get int value
-            int wl = atoi(int_c)/ 10; // don't know why, but works
+            int wl = atoi(int_c);
 
             // get float value
             double in = atof(float_c);
@@ -330,11 +322,10 @@ void readFile(char* filename, struct hash* table) {
 void readAllFiles(void) {
     // luminaire data
     readFile("../data/luminaire data/cie_a.txt", cie_incandescent);
-
-    /*
     readFile("../data/luminaire data/f11.txt", f11);
     readFile("../data/luminaire data/cie_d65.txt", cie_daylight);
 
+    /*
     // reflection data
     readFile("../data/reflectance values/a1.txt", xrite_a1);
     readFile("../data/reflectance values/e2.txt", xrite_e2);
@@ -352,11 +343,10 @@ void readAllFiles(void) {
 
 void deleteAllTables(void) {
     deleteTable(cie_incandescent);
-
-    /*
     deleteTable(cie_daylight);
     deleteTable(f11);
 
+    /*
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
@@ -435,7 +425,7 @@ void startMenu(int argc, char **argv) {
 
     char refl_function_name[2] = "";
     char lum_function_name[4] = "";
-    int n = NULL; // samples
+    int n;
     int c;
 
     // start menu
