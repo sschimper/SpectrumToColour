@@ -173,9 +173,7 @@ void deleteFromHash(struct hash *table, const float wl) {
         temp = currentNode;
         currentNode = currentNode->next;
     }
-    if (flag)
-        printf("Data with WL %.3f deleted successfully from Hash Table\n", wl);
-    else
+    if(!flag)
         printf("Given data with WL %.3f is not present in hash Table!!!!\n", wl);
     return;
 }
@@ -251,12 +249,12 @@ void printFunctionToFile(char* filename, struct hash *table) {
 // ========================================================
 // initialize all containers
 void initDataContainers(void) {
+    // luminaire data
     cie_incandescent = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     cie_daylight = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     f11 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    /*
 
-// reflectance data containers
+    // reflectance data containers
     xrite_e2 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     xrite_f4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     xrite_g4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
@@ -264,11 +262,11 @@ void initDataContainers(void) {
     xrite_j4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     xrite_a1 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
 
-// cie matching functions container
+    // cie matching functions container
     cie_x = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     cie_y = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
     cie_z = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-     */
+
 }
 
 // read filenames
@@ -301,7 +299,7 @@ void readFile(char* filename, struct hash* table) {
             // get float value
             double in = atof(float_c);
 
-            // assign 
+            // assign
             addNodeToTable(table, wl, in);
             slot_index++;
             int_count = 0;
@@ -326,7 +324,6 @@ void readAllFiles(void) {
     readFile("../data/luminaire data/cie_d65.txt", cie_daylight);
     readFile("../data/luminaire data/f11.txt", f11);
 
-    /*
     // reflection data
     readFile("../data/reflectance values/a1.txt", xrite_a1);
     readFile("../data/reflectance values/e2.txt", xrite_e2);
@@ -339,7 +336,7 @@ void readAllFiles(void) {
     readFile("../data/cie/cie_x.txt", cie_x);
     readFile("../data/cie/cie_y.txt", cie_y);
     readFile("../data/cie/cie_z.txt", cie_z);
-     */
+
 }
 
 void deleteAllTables(void) {
@@ -347,7 +344,6 @@ void deleteAllTables(void) {
     deleteTable(cie_daylight);
     deleteTable(f11);
 
-    /*
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
@@ -358,7 +354,6 @@ void deleteAllTables(void) {
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
     deleteTable(cie_incandescent);
-     */
 }
 // ========================================================
 // the actual main part of this homework assignment
@@ -514,10 +509,9 @@ int main(int argc, char **argv) {
     initDataContainers();
     readAllFiles();
 
-
     // start menu
     startMenu(argc, argv);
-    // deleteAllTables();
+    deleteAllTables();
 
     return 0;
 }
