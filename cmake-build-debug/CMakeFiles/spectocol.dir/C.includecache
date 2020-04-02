@@ -6,6 +6,14 @@
 
 #IncludeRegexTransform: 
 
+/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/3rd party/nrutil.h
+stdio.h
+-
+stdlib.h
+-
+stdio.h
+-
+
 /home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/main.c
 stdio.h
 -
@@ -21,4 +29,8 @@ getopt.h
 -
 assert.h
 -
+math.h
+-
+3rd party/nrutil.h
+/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/3rd party/nrutil.h
 

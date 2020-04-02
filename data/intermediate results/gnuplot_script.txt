@@ -1,0 +1,9 @@
+set grid
+
+set xrange[380:780]
+set yrange[0:1]
+
+set xlabel 'Wavelength'
+set ylabel 'Intensity'
+
+plot 'cie_daylight_interpolated.txt' using 1:2 with lines title 'Interpolated' lw 2, 'cie_daylight_printed.txt' using 1:2 with lines title 'Provided' lw 2

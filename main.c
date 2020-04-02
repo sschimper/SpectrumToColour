@@ -11,6 +11,8 @@
 #include <ctype.h>
 #include <getopt.h>
 #include <assert.h>
+#include <math.h>
+#include "3rd party/nrutil.h" // for interpolation
 
 // ========================================================
 // Definition of the sizes of the tables used later
@@ -19,6 +21,7 @@
 #define TABLE_SIZE 401
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
 #define VISIBLE_SPECTRUM_UPPER_BOUND 780
+#define NOT_IN_TABLE -10000000000
 #define EMEMENT_COUNT_MAX 30
 #define PI 3.14159265
 
@@ -29,29 +32,29 @@ typedef struct node{
     struct node *next;
 } node;
 
-typedef struct hash {
+typedef struct linkedList {
     struct node *head;
     int count;
-} hash;
+} linkedList;
 
 
 // luminaire data containers
-struct hash *cie_incandescent = NULL;
-struct hash *cie_daylight = NULL;
-struct hash *f11 = NULL;
+struct linkedList *cie_incandescent = NULL;
+struct linkedList *cie_daylight = NULL;
+struct linkedList *f11 = NULL;
 
 // reflectance data containers
-struct hash *xrite_e2 = NULL;
-struct hash *xrite_f4 = NULL;
-struct hash *xrite_g4 = NULL;
-struct hash *xrite_h4 = NULL;
-struct hash *xrite_j4 = NULL;
-struct hash *xrite_a1 = NULL;
+struct linkedList *xrite_e2 = NULL;
+struct linkedList *xrite_f4 = NULL;
+struct linkedList *xrite_g4 = NULL;
+struct linkedList *xrite_h4 = NULL;
+struct linkedList *xrite_j4 = NULL;
+struct linkedList *xrite_a1 = NULL;
 
 // cie matching functions container
-struct hash *cie_x = NULL;
-struct hash *cie_y = NULL;
-struct hash *cie_z = NULL;
+struct linkedList *cie_x = NULL;
+struct linkedList *cie_y = NULL;
+struct linkedList *cie_z = NULL;
 
 // ========================================================
 // GLOBAL VARIABLES
@@ -68,9 +71,9 @@ const float transformation_matrix[3][3] = {
 // ========================================================
 // DICTIONARY DATA STRUCTURE stuff
 // ========================================================
-// construct hash value
+// construct linkedList value
 // simply convert float to int
-unsigned int getHashIndex(const float wl) {
+unsigned int getlinkedListIndex(const float wl) {
     int wl_int = wl;
     assert(wl_int >= VISIBLE_SPECTRUM_LOWER_BOUND && wl_int <= VISIBLE_SPECTRUM_UPPER_BOUND);
     return wl_int - VISIBLE_SPECTRUM_LOWER_BOUND;
@@ -88,8 +91,8 @@ struct node *createNode(const float wl, const double in) {
 }
 
 // partially stolen from here: https://www.geeksforgeeks.org/insertion-sort-for-singly-linked-list/
-void addNodeToTable(struct hash *table, const float wl, const double in) {
-    unsigned int slot = getHashIndex(wl);
+void addNodeToTable(struct linkedList *table, const float wl, const double in) {
+    unsigned int slot = getlinkedListIndex(wl);
     struct node* newNode = createNode(wl, in);
 
     // check head of bucket list
@@ -105,7 +108,7 @@ void addNodeToTable(struct hash *table, const float wl, const double in) {
     /* Special case for the head end */
     if ((*head_ref) == NULL || (*head_ref)->wavelength >= newNode->wavelength)
     {
-        newNode->next = head_ref;
+        newNode->next = *head_ref;
         *head_ref = newNode;
     }
     else
@@ -125,35 +128,34 @@ void addNodeToTable(struct hash *table, const float wl, const double in) {
 
 // look up a wavelength and get the corresponding intensity
 // takes value and container as input arguments
-bool lookup(struct hash *table, const float wl) {
-    unsigned int slot = getHashIndex(wl);
+double lookup(struct linkedList *table, const float wl) {
+    unsigned int slot = getlinkedListIndex(wl);
     struct node *wantedNode;
     wantedNode = table[slot].head;
 
     if(!wantedNode) {
-        printf("Search element unavailable in hash table\n");
-        return false;
+        printf("Search element with wl %.0f unavailable in linkedList table\n", wl);
+        return NOT_IN_TABLE;
     }
 
     while(wantedNode != NULL) {
         if(wantedNode->wavelength == wl) {
-            return true;
+            printf("Search element with wl %.0f FOUND.\n", wl);
+            return wantedNode->intensity;
         }
         wantedNode = wantedNode->next;
     }
-
-    return false;
 }
 
-// stolen from here: http://see-programming.blogspot.com/2013/05/chain-hashing-separate-chaining-with.html
-void deleteFromHash(struct hash *table, const float wl) {
+// stolen from here: http://see-programming.blogspot.com/2013/05/chain-linkedListing-separate-chaining-with.html
+void deleteFromlinkedList(struct linkedList *table, const float wl) {
     int flag = 0;
-    unsigned int slot = getHashIndex(wl);
+    unsigned int slot = getlinkedListIndex(wl);
     struct node *temp, *currentNode;
     /* get the list head from current bucket */
     currentNode = table[slot].head;
     if (!currentNode) {
-        printf("Given data is not present in hash Table!!\n");
+        printf("Given data is not present in linkedList Table!!\n");
         return;
     }
     temp = currentNode;
@@ -174,23 +176,23 @@ void deleteFromHash(struct hash *table, const float wl) {
         currentNode = currentNode->next;
     }
     if(!flag)
-        printf("Given data with WL %.3f is not present in hash Table!!!!\n", wl);
+        printf("Given data with WL %.3f is not present in linkedList Table.\n", wl);
     return;
 }
 
 // delete whole table
-void deleteTable(struct hash *table) {
+void deleteTable(struct linkedList *table) {
     struct node *currentNode;
     int i;
     for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-        const unsigned int slot = getHashIndex(i);
+        const unsigned int slot = getlinkedListIndex(i);
         if (table[slot].count == 0)
             continue;
         currentNode = table[slot].head;
         if (!currentNode)
             continue;
         while (currentNode != NULL) {
-            deleteFromHash(table, currentNode->wavelength);
+            deleteFromlinkedList(table, currentNode->wavelength);
             currentNode = currentNode->next;
         }
     }
@@ -198,17 +200,17 @@ void deleteTable(struct hash *table) {
 }
 
 // helper function to print content of table
-void printFunction(struct hash *table) {
+void printFunction(struct linkedList *table) {
     struct node *myNode;
     int i;
 		for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-			  const unsigned int slot = getHashIndex(i);
+			  const unsigned int slot = getlinkedListIndex(i);
         if (table[slot].count == 0)
             continue;
         myNode = table[slot].head;
         if (!myNode)
             continue;
-        printf("\nData at index %d in Hash Table:\n", i);
+        printf("\nData at index %d in linkedList Table:\n", i);
         printf("Wavel           Intens\n");
         printf("----------------------\n");
         while (myNode != NULL) {
@@ -220,9 +222,9 @@ void printFunction(struct hash *table) {
     return;
 }
 
-/*
+
 // helper function to write a table to a txt file
-void printFunctionToFile(char* filename, struct hash *table) {
+void printFunctionToFile(char* filename, struct linkedList *table) {
 
     FILE * data_file = fopen(filename, "r");
     if(data_file == NULL) {
@@ -234,13 +236,14 @@ void printFunctionToFile(char* filename, struct hash *table) {
     }
 
     for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
-        if(lookup(i, table) != NULL_DOUBLE) {
-            fprintf(data_file, "%3i %11f\n", i, lookup(i, table));
+        double lookedUpIn = lookup(table, i);
+        if(lookedUpIn != NOT_IN_TABLE) {
+            fprintf(data_file, "%3i %11f\n", i, lookedUpIn);
         }
     }
     fclose(data_file);
 }
-*/
+
 // ========================================================
 // prepossessing stuff: init tables and
 // read the pairs of wavelength and intensity
@@ -250,27 +253,27 @@ void printFunctionToFile(char* filename, struct hash *table) {
 // initialize all containers
 void initDataContainers(void) {
     // luminaire data
-    cie_incandescent = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    cie_daylight = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    f11 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    cie_incandescent = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    cie_daylight = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    f11 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
 
     // reflectance data containers
-    xrite_e2 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    xrite_f4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    xrite_g4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    xrite_h4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    xrite_j4 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    xrite_a1 = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    xrite_e2 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    xrite_f4 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    xrite_g4 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    xrite_h4 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    xrite_j4 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    xrite_a1 = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
 
     // cie matching functions container
-    cie_x = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    cie_y = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
-    cie_z = (struct hash *)calloc(TABLE_SIZE, sizeof (struct hash));
+    cie_x = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    cie_y = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
+    cie_z = (struct linkedList *)calloc(TABLE_SIZE, sizeof (struct linkedList));
 
 }
 
 // read filenames
-void readFile(char* filename, struct hash* table) {
+void readFile(char* filename, struct linkedList* table) {
 
     FILE * data_file = fopen(filename, "r");
     if(data_file == NULL) {
@@ -356,6 +359,47 @@ void deleteAllTables(void) {
     deleteTable(cie_incandescent);
 }
 // ========================================================
+// interpolation stuff
+// ========================================================
+// http://paulbourke.net/miscellaneous/interpolation/
+double cosineInterpolate(
+        double y1,double y2,
+        double mu)
+{
+    double mu2;
+
+    mu2 = (1-cos(mu*PI))/2;
+    return(y1*(1-mu2)+y2*mu2);
+}
+
+void interpolateTableInt(linkedList *table) {
+    int x1, x2, j;
+    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i < VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        if(lookup(table, i) == NOT_IN_TABLE) {
+            x1 = i - 1;
+            j = i + 1;
+
+            while(lookup(table, j) == NOT_IN_TABLE) {
+                j++;
+            }
+            x2 = j;
+
+            float d = x2 - x1;
+            double y1 = lookup(table, x1);
+            double y2 = lookup(table, x2);
+
+            float p = 1.0;
+            for(int k = x1 + 1; k < x2; k++) {
+                double result = cosineInterpolate(y1, y2, (p/d));
+                addNodeToTable(table, k, result);
+                p = p + 1.0;
+            }
+            i = j;
+        }
+    }
+}
+
+// ========================================================
 // the actual main part of this homework assignment
 // calculation and conversion from spectral information
 // to colour
@@ -364,6 +408,9 @@ void rndWavelengthSampling(int num_samples, char* l_func, char* r_func) {
     printf("rndWavelengthSampling was called with %d samples,\n"
            "luminare function is %s,\n"
            "refl function is %s.\n", num_samples, l_func, r_func);
+
+    interpolateTableInt(cie_daylight);
+    printFunctionToFile("../data/intermediate results/cie_daylight_interpolated.txt", cie_daylight);
 }
 
 void fxdWavelengthSampling(int num_samples, char* l_func, char* r_func) {
@@ -509,8 +556,12 @@ int main(int argc, char **argv) {
     initDataContainers();
     readAllFiles();
 
+    printFunctionToFile("../data/intermediate results/cie_daylight_printed.txt", cie_daylight);
+
     // start menu
     startMenu(argc, argv);
+
+    //clean up
     deleteAllTables();
 
     return 0;
