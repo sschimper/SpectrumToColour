@@ -300,6 +300,7 @@ void readFile(char* filename, struct hash* table) {
             double in = atof(float_c);
 
             // assign and reset
+            printf("Wl: %d\n", wl);
             addNodeToTable(table, wl, in);
             slot_index++;
             int_count = 0;
