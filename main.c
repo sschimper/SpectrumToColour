@@ -12,7 +12,6 @@
 #include <getopt.h>
 #include <assert.h>
 #include <math.h>
-#include "3rd party/nrutil.h" // for interpolation
 
 // ========================================================
 // Definition of the sizes of the tables used later
@@ -56,17 +55,46 @@ struct linkedList *cie_x = NULL;
 struct linkedList *cie_y = NULL;
 struct linkedList *cie_z = NULL;
 
+// used functions
+struct linkedList *l_func;
+struct linkedList *r_func;
+
 // ========================================================
 // GLOBAL VARIABLES
 // - transformation matrix and containers for data
 // ========================================================
 
 // used for conversion from CIE XYZ -> sRGB
-const float transformation_matrix[3][3] = {
+const double transformation_matrix[3][3] = {
         {3.2410, -1.5374, -0.4986},
         {-0.9692, 1.8760, 0.0416},
         {0.0556, -0.2050, 1.0570}
 };
+
+// ========================================================
+// print a nice header
+// print a line when needed
+// ========================================================
+void printHeader(void) {
+    FILE *welcome_txt_file;
+    int c;
+    welcome_txt_file = fopen("../welcome.txt", "r");
+
+    if(welcome_txt_file == NULL) {
+        printf("Text file could not be loaded.\n");
+        return;
+    }
+
+    while((c = fgetc(welcome_txt_file)) != EOF) {
+        putchar(c);
+    }
+
+    fclose(welcome_txt_file);
+}
+
+void printLine(void) {
+    printf("-------------------------------------------------------------------------------------\n");
+}
 
 // ========================================================
 // DICTIONARY DATA STRUCTURE stuff
@@ -126,24 +154,51 @@ void addNodeToTable(struct linkedList *table, const float wl, const double in) {
     table[slot].count++;
 }
 
+void addNodeToFixedTable(struct linkedList *table, const int index, const float wl, const double in) {
+    unsigned int slot = index;
+    struct node* newNode = createNode(wl, in);
+
+    // check head of bucket list
+    if(!table[slot].head) {
+        table[slot].head = newNode;
+        table[slot].count = 1;
+        return;
+    }
+    else
+        printf("Not added.. Wl -> %.1f  In -> %.05f\n", wl, in);
+}
+
 // look up a wavelength and get the corresponding intensity
 // takes value and container as input arguments
-double lookup(struct linkedList *table, const float wl) {
+double lookupAtWl(struct linkedList *table, const float wl) {
     unsigned int slot = getlinkedListIndex(wl);
     struct node *wantedNode;
     wantedNode = table[slot].head;
 
     if(!wantedNode) {
-        printf("Search element with wl %.0f unavailable in linkedList table\n", wl);
+        // printf("Search element with wl %.0f unavailable in linkedList table\n", wl);
         return NOT_IN_TABLE;
     }
 
     while(wantedNode != NULL) {
         if(wantedNode->wavelength == wl) {
-            printf("Search element with wl %.0f FOUND.\n", wl);
             return wantedNode->intensity;
         }
         wantedNode = wantedNode->next;
+    }
+}
+
+double lookupAtIndex(struct linkedList *table, const int i) {
+    unsigned int slot = i;
+    struct node *wantedNode;
+    wantedNode = table[slot].head;
+
+    if(!wantedNode) {
+        // printf("Search element with wl %.0f unavailable in linkedList table\n", wl);
+        return NOT_IN_TABLE;
+    }
+    else {
+        return wantedNode->intensity;
     }
 }
 
@@ -203,8 +258,8 @@ void deleteTable(struct linkedList *table) {
 void printFunction(struct linkedList *table) {
     struct node *myNode;
     int i;
-		for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-			  const unsigned int slot = getlinkedListIndex(i);
+    for (i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        const unsigned int slot = getlinkedListIndex(i);
         if (table[slot].count == 0)
             continue;
         myNode = table[slot].head;
@@ -222,9 +277,16 @@ void printFunction(struct linkedList *table) {
     return;
 }
 
+void printIntFunc(struct linkedList *table, int count, char *name) {
+    printf("%s \n ========= \n", name);
+    for(int i = 0; i < count; i++) {
+        struct linkedList *thisNode = &table[i];
+        printf("%d %.0f %.6f\n", i, thisNode->head->wavelength, thisNode->head->intensity);
+    }
+}
 
 // helper function to write a table to a txt file
-void printFunctionToFile(char* filename, struct linkedList *table) {
+void printFunctionToFile(char* filename, struct linkedList *table, bool wl) {
 
     FILE * data_file = fopen(filename, "r");
     if(data_file == NULL) {
@@ -236,13 +298,93 @@ void printFunctionToFile(char* filename, struct linkedList *table) {
     }
 
     for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
-        double lookedUpIn = lookup(table, i);
+        double lookedUpIn;
+        if(wl)
+            lookedUpIn = lookupAtWl(table, i);
+        else
+            lookedUpIn = lookupAtIndex(table, i);
+
         if(lookedUpIn != NOT_IN_TABLE) {
             fprintf(data_file, "%3i %11f\n", i, lookedUpIn);
         }
     }
     fclose(data_file);
 }
+// ========================================================
+// interpolation stuff
+// ========================================================
+// http://paulbourke.net/miscellaneous/interpolation/
+double cosineInterpolate(
+        double y1,double y2,
+        double mu)
+{
+    double mu2;
+
+    mu2 = (1-cos(mu*PI))/2;
+    return(y1*(1-mu2)+y2*mu2);
+}
+
+void interpolateTableInt(linkedList *table) {
+    int x1, x2, j;
+
+    if(lookupAtWl(table, VISIBLE_SPECTRUM_UPPER_BOUND) == NOT_IN_TABLE) {
+        addNodeToTable(table, VISIBLE_SPECTRUM_UPPER_BOUND, 0.0);
+    }
+
+    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i < VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+        if(lookupAtWl(table, i) == NOT_IN_TABLE) {
+            x1 = i - 1;
+            j = i + 1;
+
+            while(j < VISIBLE_SPECTRUM_UPPER_BOUND && lookupAtWl(table, j) == NOT_IN_TABLE) {
+                j++;
+            }
+            x2 = j;
+
+            float d = x2 - x1;
+            double y1 = lookupAtWl(table, x1);
+            double y2 = lookupAtWl(table, x2);
+
+            float p = 1.0;
+            for(int k = x1 + 1; k < x2; k++) {
+                double result = cosineInterpolate(y1, y2, (p/d));
+                addNodeToTable(table, k, result);
+                p = p + 1.0;
+            }
+            i = j;
+        }
+    }
+}
+// ========================================================
+// integration
+// ========================================================
+double integrate(linkedList *table, const int count) {
+    double result = 0;
+    for(int i = 0; i < count - 1; i++) {
+        double currentIn = table[i].head->intensity;
+        double nextIn = table[i+1].head->intensity;
+        result += (currentIn + nextIn) / 2 * count;
+    }
+    return result;
+}
+
+
+// ========================================================
+// multiplication
+// ========================================================
+void convertToRgb(double cie_vec[3], double res[3])
+{
+    int i, j;
+    for (i = 0; i < 3; i++)
+    {
+        res[i] = 0;
+        for (j = 0; j < 3; j++)
+        {
+            res[i] += transformation_matrix[i][j] * cie_vec[j];
+        }
+    }
+}
+
 
 // ========================================================
 // prepossessing stuff: init tables and
@@ -340,6 +482,11 @@ void readAllFiles(void) {
     readFile("../data/cie/cie_y.txt", cie_y);
     readFile("../data/cie/cie_z.txt", cie_z);
 
+    // interpolate
+    interpolateTableInt(cie_x);
+    interpolateTableInt(cie_y);
+    interpolateTableInt(cie_z);
+
 }
 
 void deleteAllTables(void) {
@@ -359,90 +506,130 @@ void deleteAllTables(void) {
     deleteTable(cie_incandescent);
 }
 // ========================================================
-// interpolation stuff
-// ========================================================
-// http://paulbourke.net/miscellaneous/interpolation/
-double cosineInterpolate(
-        double y1,double y2,
-        double mu)
-{
-    double mu2;
-
-    mu2 = (1-cos(mu*PI))/2;
-    return(y1*(1-mu2)+y2*mu2);
-}
-
-void interpolateTableInt(linkedList *table) {
-    int x1, x2, j;
-    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i < VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
-        if(lookup(table, i) == NOT_IN_TABLE) {
-            x1 = i - 1;
-            j = i + 1;
-
-            while(lookup(table, j) == NOT_IN_TABLE) {
-                j++;
-            }
-            x2 = j;
-
-            float d = x2 - x1;
-            double y1 = lookup(table, x1);
-            double y2 = lookup(table, x2);
-
-            float p = 1.0;
-            for(int k = x1 + 1; k < x2; k++) {
-                double result = cosineInterpolate(y1, y2, (p/d));
-                addNodeToTable(table, k, result);
-                p = p + 1.0;
-            }
-            i = j;
-        }
-    }
-}
-
-// ========================================================
 // the actual main part of this homework assignment
 // calculation and conversion from spectral information
 // to colour
 // ========================================================
-void rndWavelengthSampling(int num_samples, char* l_func, char* r_func) {
-    printf("rndWavelengthSampling was called with %d samples,\n"
-           "luminare function is %s,\n"
-           "refl function is %s.\n", num_samples, l_func, r_func);
+void setFunctionsFromInput(char* l_func_s, char* r_func_s) {
 
-    interpolateTableInt(cie_daylight);
-    printFunctionToFile("../data/intermediate results/cie_daylight_interpolated.txt", cie_daylight);
-}
-
-void fxdWavelengthSampling(int num_samples, char* l_func, char* r_func) {
-    printf("fxdWavelengthSampling was called with %d samples,\n"
-           "luminare function is %s,\n"
-           "refl function is %s.\n", num_samples, l_func, r_func);
-}
-
-
-// ========================================================
-// print a nice header
-// print a line when needed
-// ========================================================
-void printHeader(void) {
-    FILE *welcome_txt_file;
-    int c;
-    welcome_txt_file = fopen("../welcome.txt", "r");
-
-    if(welcome_txt_file == NULL) {
-        printf("Text file could not be loaded.\n");
+    // set l function
+    if(strcmp(l_func_s,"ciea") == 0)
+        l_func = cie_incandescent;
+    else if(strcmp(l_func_s,"cied") == 0)
+        l_func = cie_daylight;
+    else if(strcmp(l_func_s,"f11") == 0)
+        l_func = f11;
+    else {
+        printf("Couldn't find l_function: Wrong arguments...\n");
         return;
     }
 
-    while((c = fgetc(welcome_txt_file)) != EOF) {
-        putchar(c);
+    // set r function
+    if(strcmp(r_func_s,"a1") == 0)
+        r_func = xrite_a1;
+    else if(strcmp(r_func_s,"e2") == 0)
+        r_func = xrite_e2;
+    else if(strcmp(r_func_s,"f4") == 0)
+        r_func = xrite_f4;
+    else if(strcmp(r_func_s,"g4") == 0)
+        r_func = xrite_g4;
+    else if(strcmp(r_func_s,"h4") == 0)
+        r_func = xrite_h4;
+    else if(strcmp(r_func_s,"j4") == 0)
+        r_func = xrite_j4;
+    else {
+        printf("Couldn't find r_function: Wrong arguments...\n");
+        return;
     }
-
-    fclose(welcome_txt_file);
 }
 
-void printLine(void) {
-    printf("-------------------------------------------------------------------------------------\n");
+struct linkedList *pointwiseMultipication(const linkedList *a, const linkedList *b, const int count) {
+
+    size_t n = count;
+
+    linkedList *res = (struct linkedList *)calloc(n + 2, sizeof (struct linkedList));
+
+    for(int i = 0; i < n; i++) {
+        assert(a[i].head->wavelength == b[i].head->wavelength);
+        double a_in = a[i].head->intensity;
+        double b_in = b[i].head->intensity;
+        double mult_res = a[i].head->intensity * b[i].head->intensity;
+        addNodeToFixedTable(res, i, a[i].head->wavelength, mult_res);
+    }
+    return res;
+}
+
+void setUpFunctions(char* l_func_s, char* r_func_s) {
+    setFunctionsFromInput(l_func_s, r_func_s);
+    interpolateTableInt(l_func);
+    interpolateTableInt(r_func);
+}
+
+
+void rndWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
+    printf("Random wavelength (incl. hero) sampling with %d samples,\n"
+           "luminare function %s,\n"
+           "and reflectance function %s...\n", num_samples, l_func_s, r_func_s);
+
+    setUpFunctions(l_func_s, r_func_s);
+}
+
+void fxdWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
+    printf("Fixed wavelength sampling with %d samples,\n"
+           "luminare function %s,\n"
+           "and reflectance function %s...\n", num_samples, l_func_s, r_func_s);
+
+    if(num_samples > 50) {
+        printf("Number of samples for fixed wavelength sampling is too high. Please choose a value smaller than 50.\n");
+        exit(0);
+    }
+
+    setUpFunctions(l_func_s, r_func_s);
+
+    int step = (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
+
+    linkedList* l_func_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+    linkedList* r_func_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+    linkedList* cie_x_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+    linkedList* cie_y_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+    linkedList* cie_z_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+
+    int j = 0;
+    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i < VISIBLE_SPECTRUM_UPPER_BOUND; i = i + step) {
+        addNodeToFixedTable(l_func_fxd, j, i, lookupAtWl(l_func, i));
+        addNodeToFixedTable(r_func_fxd, j, i, lookupAtWl(r_func, i));
+        addNodeToFixedTable(cie_x_fxd, j, i, lookupAtWl(cie_x, i));
+        addNodeToFixedTable(cie_y_fxd, j, i, lookupAtWl(cie_y, i));
+        addNodeToFixedTable(cie_z_fxd, j, i, lookupAtWl(cie_z, i));
+        j++;
+    }
+
+    linkedList* res_spec = pointwiseMultipication(l_func_fxd, r_func_fxd, step);
+
+    cie_x_fxd = pointwiseMultipication(cie_x_fxd, res_spec, step);
+    cie_y_fxd = pointwiseMultipication(cie_y_fxd, res_spec, step);
+    cie_z_fxd = pointwiseMultipication(cie_z_fxd, res_spec, step);
+
+    double cie_x_value = integrate(cie_x_fxd, step);
+    double cie_y_value = integrate(cie_y_fxd, step);
+    double cie_z_value = integrate(cie_z_fxd, step);
+
+    double cie[3] = {cie_x_value, cie_y_value, cie_z_value};
+    double rgb[3];
+
+    convertToRgb(cie, rgb);
+
+    printLine();
+    printf("Result of fixed WL sampling: R(%.5f) G(%.5f) B(%.5f)\n", rgb[0], rgb[1], rgb[2]);
+}
+
+void cmpWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
+    printf("Comparison between fixed wavelength sampling and random wavelength sampling\n"
+           "with %d samples,\n"
+           "luminare function %s,\n"
+           "and reflectance function %s...\n", num_samples, l_func_s, r_func_s);
+
+    fxdWavelengthSampling(num_samples, l_func_s, r_func_s);
 }
 // ========================================================
 // menu - parsing of user input commands
@@ -450,24 +637,25 @@ void printLine(void) {
 void printHelp(void) {
     // print instructions
     printf("Available Options: \n"
-           "    --rnd n                  (for [r]andom wavelength sampling, where n is the number of samples)\n"
-           "    --fxd n                  (for [f]ixed wavelength sampling, where n is the number of samples)\n"
-           "    -l [ciea/cied/f11]       (for [l]uminaire data, default = ciea)\n"
-           "    -r [a1/e2/f4/g4/h4/j4]   (for [r]eflectance data, default = a1)\n"
-           "    -h                       (for printing this exact same text)\n");
+           "    --random n                 (for [r]andom wavelength sampling, where n is the number of samples)\n"
+           "    --fixed n                  (for [f]ixed wavelength sampling, where n is the number of samples)\n"
+           "    --compare n                (uses both random- and wavelength sampling and compares the results. n is the number of samples)\n"
+           "    -l [ciea/cied/f11]         (for [l]uminaire data, default = ciea)\n"
+           "    -r [a1/e2/f4/g4/h4/j4]     (for [r]eflectance data, default = a1)\n"
+           "    -h                         (for printing this exact same text)\n");
 }
 
 // menu parsing
 void startMenu(int argc, char **argv) {
-    printHeader();
-    printLine();
+    //printHeader();
 
     // if this flag is set, do random wavelength sampling
     // else, do fixed bucket sampling
     static int rnd_flag;
+    static int cmp_flag = 0;
 
-    char refl_function_name[2] = "";
-    char lum_function_name[4] = "";
+    char refl_function_name[30] = "";
+    char lum_function_name[30] = "";
     int n;
     int c;
 
@@ -476,8 +664,9 @@ void startMenu(int argc, char **argv) {
         static struct option long_options[] =
                 {
                         /* These options set a flag. */
-                        {"rnd", required_argument,     &rnd_flag, 1},
-                        {"fxd", required_argument,     &rnd_flag, 0},
+                        {"random", required_argument,     &rnd_flag, 1},
+                        {"fixed", required_argument,     &rnd_flag, 0},
+                        {"compare", required_argument,     &cmp_flag, 1},
                         /* These options don’t set a flag.
                            We distinguish them by their indices. */
                         {"help",     no_argument,      0, 'h'},
@@ -541,10 +730,16 @@ void startMenu(int argc, char **argv) {
     }
 
     if(rnd_flag == 0) {
+        printLine();
         fxdWavelengthSampling(n, lum_function_name, refl_function_name);
     }
     else if(rnd_flag == 1) {
+        printLine();
         rndWavelengthSampling(n, lum_function_name, refl_function_name);
+    }
+    else if(cmp_flag == 1) {
+        printLine();
+        cmpWavelengthSampling(n, lum_function_name, refl_function_name);
     }
 }
 
@@ -556,7 +751,7 @@ int main(int argc, char **argv) {
     initDataContainers();
     readAllFiles();
 
-    printFunctionToFile("../data/intermediate results/cie_daylight_printed.txt", cie_daylight);
+
 
     // start menu
     startMenu(argc, argv);
