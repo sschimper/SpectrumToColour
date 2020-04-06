@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
 // ========================================================
 // Definition of the sizes of the tables used later
@@ -384,7 +385,43 @@ void convertToRgb(double cie_vec[3], double res[3])
         }
     }
 }
+// ========================================================
+// randomness
+// ========================================================
+int getRandomNumber() {
+    int r = random() % 400 + 1;
+    return r + VISIBLE_SPECTRUM_LOWER_BOUND;
+}
 
+// ========================================================
+// randomness
+// ========================================================
+void swap(linkedList *xp, linkedList *yp)
+{
+    linkedList temp = *xp;
+    *xp = *yp;
+    *yp = temp;
+}
+
+// Function to perform Selection Sort
+void selectionSort(linkedList *table, int n)
+{
+    int i, j, min_idx;
+
+    // One by one move boundary of unsorted subarray
+    for (i = 0; i < n - 1; i++) {
+
+        // Find the minimum element in unsorted array
+        min_idx = i;
+        for (j = i + 1; j < n; j++)
+            if (table[j].head->wavelength < table[min_idx].head->wavelength)
+                min_idx = j;
+
+        // Swap the found minimum element
+        // with the first element
+        swap(&table[min_idx], &table[i]);
+    }
+}
 
 // ========================================================
 // prepossessing stuff: init tables and
@@ -547,7 +584,7 @@ struct linkedList *pointwiseMultipication(const linkedList *a, const linkedList 
 
     size_t n = count;
 
-    linkedList *res = (struct linkedList *)calloc(n + 2, sizeof (struct linkedList));
+    linkedList *res = (struct linkedList *)calloc(n, sizeof (struct linkedList));
 
     for(int i = 0; i < n; i++) {
         assert(a[i].head->wavelength == b[i].head->wavelength);
@@ -565,6 +602,19 @@ void setUpFunctions(char* l_func_s, char* r_func_s) {
     interpolateTableInt(r_func);
 }
 
+void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_func) {
+
+    linkedList *l_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *r_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_x_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_y_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_z_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+
+    srand(time(0));
+    int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
+    int heroWavelength = getRandomNumber();
+
+}
 
 void rndWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
     printf("Random wavelength (incl. hero) sampling with %d samples,\n"
@@ -572,6 +622,48 @@ void rndWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
            "and reflectance function %s...\n", num_samples, l_func_s, r_func_s);
 
     setUpFunctions(l_func_s, r_func_s);
+
+    linkedList *l_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *r_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_x_rnd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_y_rnd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *cie_z_rnd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+
+    srand(time(0));
+    for(int i = 0; i < num_samples; i++) {
+        int rndWl = getRandomNumber();
+        addNodeToFixedTable(l_rndBuckets, i, rndWl, lookupAtWl(l_func, rndWl));
+        addNodeToFixedTable(r_rndBuckets, i, rndWl, lookupAtWl(r_func, rndWl));
+        addNodeToFixedTable(cie_x_rnd, i, rndWl, lookupAtWl(cie_x, rndWl));
+        addNodeToFixedTable(cie_y_rnd, i, rndWl, lookupAtWl(cie_y, rndWl));
+        addNodeToFixedTable(cie_z_rnd, i, rndWl, lookupAtWl(cie_z, rndWl));
+    }
+
+    selectionSort(l_rndBuckets, num_samples);
+    selectionSort(r_rndBuckets, num_samples);
+    selectionSort(cie_x_rnd, num_samples);
+    selectionSort(cie_y_rnd, num_samples);
+    selectionSort(cie_z_rnd, num_samples);
+
+    linkedList* res_spec = pointwiseMultipication(l_rndBuckets, r_rndBuckets, num_samples);
+
+    cie_x_rnd = pointwiseMultipication(cie_x_rnd, res_spec, num_samples);
+    cie_y_rnd = pointwiseMultipication(cie_y_rnd, res_spec, num_samples);
+    cie_z_rnd = pointwiseMultipication(cie_z_rnd, res_spec, num_samples);
+
+    double cie_x_value = integrate(cie_x_rnd, num_samples);
+    double cie_y_value = integrate(cie_y_rnd, num_samples);
+    double cie_z_value = integrate(cie_z_rnd, num_samples);
+
+    double cie[3] = {cie_x_value, cie_y_value, cie_z_value};
+    double rgb[3];
+
+    convertToRgb(cie, rgb);
+
+    printLine();
+    printf("Result of random WL sampling: R(%.5f) G(%.5f) B(%.5f)\n", rgb[0], rgb[1], rgb[2]);
+
+    heroWavelengthSampling(num_samples, l_func, r_func);
 }
 
 void fxdWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
@@ -586,33 +678,38 @@ void fxdWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
 
     setUpFunctions(l_func_s, r_func_s);
 
-    int step = (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
+    int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
 
-    linkedList* l_func_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
-    linkedList* r_func_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
-    linkedList* cie_x_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
-    linkedList* cie_y_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
-    linkedList* cie_z_fxd = (struct linkedList *)calloc(step, sizeof (struct linkedList));
+    linkedList* l_func_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList* r_func_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList* cie_x_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList* cie_y_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList* cie_z_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
 
-    int j = 0;
-    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i < VISIBLE_SPECTRUM_UPPER_BOUND; i = i + step) {
-        addNodeToFixedTable(l_func_fxd, j, i, lookupAtWl(l_func, i));
-        addNodeToFixedTable(r_func_fxd, j, i, lookupAtWl(r_func, i));
-        addNodeToFixedTable(cie_x_fxd, j, i, lookupAtWl(cie_x, i));
-        addNodeToFixedTable(cie_y_fxd, j, i, lookupAtWl(cie_y, i));
-        addNodeToFixedTable(cie_z_fxd, j, i, lookupAtWl(cie_z, i));
-        j++;
+    int i;
+    int d = 0;
+    for(int j = 0; j <= num_samples; j++) {
+        i = j + VISIBLE_SPECTRUM_LOWER_BOUND;
+        addNodeToFixedTable(l_func_fxd, j, i + d, lookupAtWl(l_func, i + d));
+        addNodeToFixedTable(r_func_fxd, j, i + d, lookupAtWl(r_func, i + d));
+        addNodeToFixedTable(cie_x_fxd, j, i + d, lookupAtWl(cie_x, i + d));
+        addNodeToFixedTable(cie_y_fxd, j, i + d, lookupAtWl(cie_y, i + d));
+        addNodeToFixedTable(cie_z_fxd, j, i + d, lookupAtWl(cie_z, i + d));
+        d += delta - 1;
     }
 
-    linkedList* res_spec = pointwiseMultipication(l_func_fxd, r_func_fxd, step);
+    linkedList* res_spec = pointwiseMultipication(l_func_fxd, r_func_fxd, num_samples);
+    printFunctionToFile("../data/intermediate results/l_func.txt", l_func_fxd, true);
+    printFunctionToFile("../data/intermediate results/r_func.txt", r_func_fxd, true);
+    printFunctionToFile("../data/intermediate results/res_spec.txt", res_spec, true);
 
-    cie_x_fxd = pointwiseMultipication(cie_x_fxd, res_spec, step);
-    cie_y_fxd = pointwiseMultipication(cie_y_fxd, res_spec, step);
-    cie_z_fxd = pointwiseMultipication(cie_z_fxd, res_spec, step);
+    cie_x_fxd = pointwiseMultipication(cie_x_fxd, res_spec, num_samples);
+    cie_y_fxd = pointwiseMultipication(cie_y_fxd, res_spec, num_samples);
+    cie_z_fxd = pointwiseMultipication(cie_z_fxd, res_spec, num_samples);
 
-    double cie_x_value = integrate(cie_x_fxd, step);
-    double cie_y_value = integrate(cie_y_fxd, step);
-    double cie_z_value = integrate(cie_z_fxd, step);
+    double cie_x_value = integrate(cie_x_fxd, num_samples);
+    double cie_y_value = integrate(cie_y_fxd, num_samples);
+    double cie_z_value = integrate(cie_z_fxd, num_samples);
 
     double cie[3] = {cie_x_value, cie_y_value, cie_z_value};
     double rgb[3];
