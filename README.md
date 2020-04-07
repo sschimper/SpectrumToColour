@@ -9,10 +9,10 @@ You can clone this repository to a suitable location on your hard-drive using
 git clone https://github.com/sschimper/SpectrumToColour.git
 ```
 
-I will denote this location as "repo-location". Navigate to 
+Navigate to 
 
 ```sh
-repo-location/cmake-build-debug
+SectrumToColour/cmake-build-debug
 ```
 Here you can find the executable with the name "spectocol".
 
