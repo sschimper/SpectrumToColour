@@ -1,0 +1,12 @@
+set grid
+
+set xrange[380:780]
+set yrange[0:100]
+
+set xlabel 'Wavelength'
+set ylabel 'Intensity'
+
+plot 'rnd_l_func_res.txt' using 1:2 with lines title 'L Func' lw 2, \
+     'rnd_r_func_res.txt' using 1:2 with lines title 'R Func' lw 2, \
+     'rnd_res_spec.txt' using 1:2 with lines title 'Result' lw 2, \
+

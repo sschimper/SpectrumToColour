@@ -66,7 +66,7 @@ struct linkedList *r_func;
 // ========================================================
 
 // used for conversion from CIE XYZ -> sRGB
-const double transformation_matrix[3][3] = {
+const float transformation_matrix[3][3] = {
         {3.2410, -1.5374, -0.4986},
         {-0.9692, 1.8760, 0.0416},
         {0.0556, -0.2050, 1.0570}
@@ -287,28 +287,42 @@ void printIntFunc(struct linkedList *table, int count, char *name) {
 }
 
 // helper function to write a table to a txt file
-void printFunctionToFile(char* filename, struct linkedList *table, bool wl) {
+void printFunctionToFile(char* filename, struct linkedList *table, int count) {
 
     FILE * data_file = fopen(filename, "r");
+    if(data_file != NULL) {
+        remove(data_file);
+    }
+
+    data_file = fopen(filename, "a");
     if(data_file == NULL) {
-        data_file = fopen(filename, "a");
-        if(data_file == NULL) {
-            printf("Error: No file was found, and a new file couldn't be created.\n");
-            return;
-        }
+        printf("Error: No file was found, and a new file couldn't be created.\n");
+        return;
     }
 
-    for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; ++i) {
-        double lookedUpIn;
-        if(wl)
+    if(count == 0) {
+        for(int i = VISIBLE_SPECTRUM_LOWER_BOUND; i <= VISIBLE_SPECTRUM_UPPER_BOUND; i++) {
+            double lookedUpIn;
             lookedUpIn = lookupAtWl(table, i);
-        else
-            lookedUpIn = lookupAtIndex(table, i);
 
-        if(lookedUpIn != NOT_IN_TABLE) {
-            fprintf(data_file, "%3i %11f\n", i, lookedUpIn);
+            if(lookedUpIn != NOT_IN_TABLE) {
+                fprintf(data_file, "%3i %11f\n", i, lookedUpIn);
+            }
         }
     }
+    else {
+        for(int i = 0; i < count; i++) {
+            double lookedUpIn;
+            linkedList *thisNode = &table[i];
+
+            if(thisNode != NULL) {
+                float wl = thisNode->head->wavelength;
+                double in = thisNode->head->intensity;
+                fprintf(data_file, "%f %.6f\n", wl, in);
+            }
+        }
+    }
+
     fclose(data_file);
 }
 // ========================================================
@@ -359,12 +373,26 @@ void interpolateTableInt(linkedList *table) {
 // ========================================================
 // integration
 // ========================================================
-double integrate(linkedList *table, const int count) {
-    double result = 0;
+float integrate_uniform(linkedList *table, const int count, const int delta) {
+
+    float result = 0;
     for(int i = 0; i < count - 1; i++) {
-        double currentIn = table[i].head->intensity;
-        double nextIn = table[i+1].head->intensity;
-        result += (currentIn + nextIn) / 2 * count;
+        float currentIn = table[i].head->intensity;
+        float nextIn = table[i+1].head->intensity;
+        result += ((currentIn + nextIn) / 2) * delta;
+    }
+    return result;
+}
+
+float integrate_nonuniform(linkedList *table, const int count) {
+
+    float result = 0;
+    for(int i = 0; i < count - 1; i++) {
+        float currentWl = table[i].head->wavelength;
+        float nextWl = table[i+1].head->wavelength;
+        float currentIn = table[i].head->intensity;
+        float nextIn = table[i+1].head->intensity;
+        result += ((currentIn + nextIn) / 2) * (nextWl - currentWl);
     }
     return result;
 }
@@ -373,7 +401,7 @@ double integrate(linkedList *table, const int count) {
 // ========================================================
 // multiplication
 // ========================================================
-void convertToRgb(double cie_vec[3], double res[3])
+void convertToRgb(float cie_vec[3], float res[3])
 {
     int i, j;
     for (i = 0; i < 3; i++)
@@ -394,7 +422,7 @@ int getRandomNumber() {
 }
 
 // ========================================================
-// randomness
+// sorting
 // ========================================================
 void swap(linkedList *xp, linkedList *yp)
 {
@@ -421,6 +449,23 @@ void selectionSort(linkedList *table, int n)
         // with the first element
         swap(&table[min_idx], &table[i]);
     }
+}
+
+// ========================================================
+// point-wise multiplication
+// ========================================================
+struct linkedList *pointwiseMultipication(const linkedList *a, const linkedList *b, const int count) {
+
+    size_t n = count;
+
+    linkedList *res = (struct linkedList *)calloc(n, sizeof (struct linkedList));
+
+    for(int i = 0; i < n; i++) {
+        assert(a[i].head->wavelength == b[i].head->wavelength);
+        double mult_res = a[i].head->intensity * b[i].head->intensity;
+        addNodeToFixedTable(res, i, a[i].head->wavelength, mult_res);
+    }
+    return res;
 }
 
 // ========================================================
@@ -580,22 +625,6 @@ void setFunctionsFromInput(char* l_func_s, char* r_func_s) {
     }
 }
 
-struct linkedList *pointwiseMultipication(const linkedList *a, const linkedList *b, const int count) {
-
-    size_t n = count;
-
-    linkedList *res = (struct linkedList *)calloc(n, sizeof (struct linkedList));
-
-    for(int i = 0; i < n; i++) {
-        assert(a[i].head->wavelength == b[i].head->wavelength);
-        double a_in = a[i].head->intensity;
-        double b_in = b[i].head->intensity;
-        double mult_res = a[i].head->intensity * b[i].head->intensity;
-        addNodeToFixedTable(res, i, a[i].head->wavelength, mult_res);
-    }
-    return res;
-}
-
 void setUpFunctions(char* l_func_s, char* r_func_s) {
     setFunctionsFromInput(l_func_s, r_func_s);
     interpolateTableInt(l_func);
@@ -604,8 +633,8 @@ void setUpFunctions(char* l_func_s, char* r_func_s) {
 
 void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_func) {
 
-    linkedList *l_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
-    linkedList *r_rndBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *l_heroBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+    linkedList *r_heroBuckets = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList *cie_x_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList *cie_y_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList *cie_z_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
@@ -614,6 +643,63 @@ void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_f
     int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
     int heroWavelength = getRandomNumber();
 
+    addNodeToFixedTable(l_heroBuckets, 0, heroWavelength, lookupAtWl(l_func, heroWavelength));
+    addNodeToFixedTable(r_heroBuckets, 0, heroWavelength, lookupAtWl(r_func, heroWavelength));
+    addNodeToFixedTable(cie_x_hero, 0, heroWavelength, lookupAtWl(cie_x, heroWavelength));
+    addNodeToFixedTable(cie_y_hero, 0, heroWavelength, lookupAtWl(cie_y, heroWavelength));
+    addNodeToFixedTable(cie_z_hero, 0, heroWavelength, lookupAtWl(cie_z, heroWavelength));
+
+    for(int j = 1; j < num_samples; j++) {
+        int wl = heroWavelength + (j * delta);
+        if(wl > VISIBLE_SPECTRUM_UPPER_BOUND) {
+            wl = wl%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
+        }
+        addNodeToFixedTable(l_heroBuckets, j, wl, lookupAtWl(l_func, wl));
+        addNodeToFixedTable(r_heroBuckets, j, wl, lookupAtWl(r_func, wl));
+        addNodeToFixedTable(cie_x_hero, j, wl, lookupAtWl(cie_x, wl));
+        addNodeToFixedTable(cie_y_hero, j, wl, lookupAtWl(cie_y, wl));
+        addNodeToFixedTable(cie_z_hero, j, wl, lookupAtWl(cie_z, wl));
+    }
+
+    selectionSort(l_heroBuckets, num_samples);
+    selectionSort(r_heroBuckets, num_samples);
+    selectionSort(cie_x_hero, num_samples);
+    selectionSort(cie_y_hero, num_samples);
+    selectionSort(cie_z_hero, num_samples);
+
+    linkedList* res_spec = pointwiseMultipication(l_heroBuckets, r_heroBuckets, num_samples);
+
+    printFunctionToFile("../data/intermediate results/rnd_hero_l_func_res.txt", l_heroBuckets, num_samples);
+    printFunctionToFile("../data/intermediate results/rnd_hero_r_func_res.txt", r_heroBuckets, num_samples);
+    printFunctionToFile("../data/intermediate results/rnd_hero_res_spec.txt", res_spec, num_samples);
+
+    printFunctionToFile("../data/intermediate results/res_cie_x.txt", cie_x_hero, num_samples);
+    printFunctionToFile("../data/intermediate results/res__cie_y.txt", cie_y_hero, num_samples);
+    printFunctionToFile("../data/intermediate results/res_cie_z.txt", cie_z_hero, num_samples);
+
+    cie_x_hero = pointwiseMultipication(cie_x_hero, res_spec, num_samples);
+    cie_y_hero = pointwiseMultipication(cie_y_hero, res_spec, num_samples);
+    cie_z_hero = pointwiseMultipication(cie_z_hero, res_spec, num_samples);
+
+    double cie_x_value = integrate_nonuniform(cie_x_hero, num_samples);
+    double cie_y_value = integrate_nonuniform(cie_y_hero, num_samples);
+    double cie_z_value = integrate_nonuniform(cie_z_hero, num_samples);
+
+    float cie[3] = {cie_x_value, cie_y_value, cie_z_value};
+    float rgb[3];
+
+    convertToRgb(cie, rgb);
+
+    printLine();
+    printf("Result of hero WL sampling: R(%.5f) G(%.5f) B(%.5f)\n", rgb[0], rgb[1], rgb[2]);
+    printLine();
+
+    free(res_spec);
+    free(l_heroBuckets);
+    free(r_heroBuckets);
+    free(cie_x_hero);
+    free(cie_y_hero);
+    free(cie_z_hero);
 }
 
 void rndWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
@@ -647,21 +733,37 @@ void rndWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
 
     linkedList* res_spec = pointwiseMultipication(l_rndBuckets, r_rndBuckets, num_samples);
 
+    printFunctionToFile("../data/intermediate results/rnd_l_func_res.txt", l_rndBuckets, num_samples);
+    printFunctionToFile("../data/intermediate results/rnd_r_func_res.txt", r_rndBuckets, num_samples);
+    printFunctionToFile("../data/intermediate results/rnd_res_spec.txt", res_spec, num_samples);
+
     cie_x_rnd = pointwiseMultipication(cie_x_rnd, res_spec, num_samples);
     cie_y_rnd = pointwiseMultipication(cie_y_rnd, res_spec, num_samples);
     cie_z_rnd = pointwiseMultipication(cie_z_rnd, res_spec, num_samples);
 
-    double cie_x_value = integrate(cie_x_rnd, num_samples);
-    double cie_y_value = integrate(cie_y_rnd, num_samples);
-    double cie_z_value = integrate(cie_z_rnd, num_samples);
+    printFunctionToFile("../data/intermediate results/ciex_res.txt", cie_x_rnd, num_samples);
+    printFunctionToFile("../data/intermediate results/ciey_res.txt", cie_y_rnd, num_samples);
+    printFunctionToFile("../data/intermediate results/ciez_res.txt", cie_z_rnd, num_samples);
 
-    double cie[3] = {cie_x_value, cie_y_value, cie_z_value};
-    double rgb[3];
+    float cie_x_value = integrate_nonuniform(cie_x_rnd, num_samples);
+    float cie_y_value = integrate_nonuniform(cie_y_rnd, num_samples);
+    float cie_z_value = integrate_nonuniform(cie_z_rnd, num_samples);
+
+    float cie[3] = {cie_x_value, cie_y_value, cie_z_value};
+    float rgb[3];
 
     convertToRgb(cie, rgb);
 
     printLine();
     printf("Result of random WL sampling: R(%.5f) G(%.5f) B(%.5f)\n", rgb[0], rgb[1], rgb[2]);
+    printLine();
+
+    free(res_spec);
+    free(l_rndBuckets);
+    free(r_rndBuckets);
+    free(cie_x_rnd);
+    free(cie_y_rnd);
+    free(cie_z_rnd);
 
     heroWavelengthSampling(num_samples, l_func, r_func);
 }
@@ -678,7 +780,7 @@ void fxdWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
 
     setUpFunctions(l_func_s, r_func_s);
 
-    int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;
+    int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / (num_samples - 1);
 
     linkedList* l_func_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList* r_func_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
@@ -686,47 +788,48 @@ void fxdWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
     linkedList* cie_y_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList* cie_z_fxd = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
 
-    int i;
-    int d = 0;
-    for(int j = 0; j <= num_samples; j++) {
-        i = j + VISIBLE_SPECTRUM_LOWER_BOUND;
-        addNodeToFixedTable(l_func_fxd, j, i + d, lookupAtWl(l_func, i + d));
-        addNodeToFixedTable(r_func_fxd, j, i + d, lookupAtWl(r_func, i + d));
-        addNodeToFixedTable(cie_x_fxd, j, i + d, lookupAtWl(cie_x, i + d));
-        addNodeToFixedTable(cie_y_fxd, j, i + d, lookupAtWl(cie_y, i + d));
-        addNodeToFixedTable(cie_z_fxd, j, i + d, lookupAtWl(cie_z, i + d));
-        d += delta - 1;
+    for(int j = 0; j < num_samples; j++) {
+        int wl = VISIBLE_SPECTRUM_LOWER_BOUND + (j * delta);
+        addNodeToFixedTable(l_func_fxd, j, wl, lookupAtWl(l_func, wl));
+        addNodeToFixedTable(r_func_fxd, j, wl, lookupAtWl(r_func, wl));
+        addNodeToFixedTable(cie_x_fxd, j, wl, lookupAtWl(cie_x, wl));
+        addNodeToFixedTable(cie_y_fxd, j, wl, lookupAtWl(cie_y, wl));
+        addNodeToFixedTable(cie_z_fxd, j, wl, lookupAtWl(cie_z, wl));
     }
 
     linkedList* res_spec = pointwiseMultipication(l_func_fxd, r_func_fxd, num_samples);
-    printFunctionToFile("../data/intermediate results/l_func.txt", l_func_fxd, true);
-    printFunctionToFile("../data/intermediate results/r_func.txt", r_func_fxd, true);
-    printFunctionToFile("../data/intermediate results/res_spec.txt", res_spec, true);
+    printFunctionToFile("../data/intermediate results/fxd_l_func.txt", l_func_fxd, num_samples);
+    printFunctionToFile("../data/intermediate results/fxd_r_func.txt", r_func_fxd, num_samples);
+    printFunctionToFile("../data/intermediate results/fxd_res_spec.txt", res_spec, num_samples);
 
     cie_x_fxd = pointwiseMultipication(cie_x_fxd, res_spec, num_samples);
     cie_y_fxd = pointwiseMultipication(cie_y_fxd, res_spec, num_samples);
     cie_z_fxd = pointwiseMultipication(cie_z_fxd, res_spec, num_samples);
 
-    double cie_x_value = integrate(cie_x_fxd, num_samples);
-    double cie_y_value = integrate(cie_y_fxd, num_samples);
-    double cie_z_value = integrate(cie_z_fxd, num_samples);
+    double cie_x_value = integrate_uniform(cie_x_fxd, num_samples, delta);
+    double cie_y_value = integrate_uniform(cie_y_fxd, num_samples, delta);
+    double cie_z_value = integrate_uniform(cie_z_fxd, num_samples, delta);
 
-    double cie[3] = {cie_x_value, cie_y_value, cie_z_value};
-    double rgb[3];
+    float cie[3] = {cie_x_value, cie_y_value, cie_z_value};
+    float rgb[3];
 
     convertToRgb(cie, rgb);
 
     printLine();
     printf("Result of fixed WL sampling: R(%.5f) G(%.5f) B(%.5f)\n", rgb[0], rgb[1], rgb[2]);
+    printLine();
+
+    free(res_spec);
+    free(l_func_fxd);
+    free(r_func_fxd);
+    free(cie_x_fxd);
+    free(cie_y_fxd);
+    free(cie_z_fxd);
 }
 
 void cmpWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
-    printf("Comparison between fixed wavelength sampling and random wavelength sampling\n"
-           "with %d samples,\n"
-           "luminare function %s,\n"
-           "and reflectance function %s...\n", num_samples, l_func_s, r_func_s);
-
     fxdWavelengthSampling(num_samples, l_func_s, r_func_s);
+    rndWavelengthSampling(num_samples, l_func_s, r_func_s);
 }
 // ========================================================
 // menu - parsing of user input commands
@@ -826,11 +929,11 @@ void startMenu(int argc, char **argv) {
         putchar ('\n');
     }
 
-    if(rnd_flag == 0) {
+    if(rnd_flag == 0 && cmp_flag == 0) {
         printLine();
         fxdWavelengthSampling(n, lum_function_name, refl_function_name);
     }
-    else if(rnd_flag == 1) {
+    else if(rnd_flag == 1 && cmp_flag == 0) {
         printLine();
         rndWavelengthSampling(n, lum_function_name, refl_function_name);
     }
@@ -847,8 +950,6 @@ int main(int argc, char **argv) {
     //prepossessing stuff
     initDataContainers();
     readAllFiles();
-
-
 
     // start menu
     startMenu(argc, argv);

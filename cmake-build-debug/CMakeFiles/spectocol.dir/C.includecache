@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/sebastian/MSc Computer Science/Spectral Rendering/Assignments/SpectrumToColour/main.c
+/home/sebastian/Programs/SpectrumToColour/main.c
 stdio.h
 -
 stdlib.h

@@ -1,0 +1,12 @@
+set grid
+
+set xrange[380:780]
+set yrange[0:5]
+
+set xlabel 'Wavelength'
+set ylabel 'Intensity'
+
+plot 'ciex_res.txt' using 1:2 with lines title 'CIE X' lw 2, \
+     'ciey_res.txt' using 1:2 with lines title 'CIE Y' lw 2, \
+     'ciez_res.txt' using 1:2 with lines title 'CIE Z' lw 2, \
+
