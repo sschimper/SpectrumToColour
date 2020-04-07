@@ -837,12 +837,13 @@ void cmpWavelengthSampling(int num_samples, char* l_func_s, char* r_func_s) {
 void printHelp(void) {
     // print instructions
     printf("Available Options: \n"
+           "    --help                     (for printing this exact same text)\n"
            "    --random n                 (for [r]andom wavelength sampling, where n is the number of samples)\n"
            "    --fixed n                  (for [f]ixed wavelength sampling, where n is the number of samples)\n"
            "    --compare n                (uses both random- and wavelength sampling and compares the results. n is the number of samples)\n"
            "    -l [ciea/cied/f11]         (for [l]uminaire data, default = ciea)\n"
            "    -r [a1/e2/f4/g4/h4/j4]     (for [r]eflectance data, default = a1)\n"
-           "    -h                         (for printing this exact same text)\n");
+           );
 }
 
 // menu parsing
@@ -853,6 +854,7 @@ void startMenu(int argc, char **argv) {
     // else, do fixed bucket sampling
     static int rnd_flag;
     static int cmp_flag = 0;
+    static int help_flag = 0;
 
     char refl_function_name[30] = "";
     char lum_function_name[30] = "";
@@ -867,9 +869,10 @@ void startMenu(int argc, char **argv) {
                         {"random", required_argument,     &rnd_flag, 1},
                         {"fixed", required_argument,     &rnd_flag, 0},
                         {"compare", required_argument,     &cmp_flag, 1},
+                        {"help", no_argument,     &help_flag, 1},
                         /* These options don’t set a flag.
                            We distinguish them by their indices. */
-                        {"help",     no_argument,      0, 'h'},
+
                         {"liminaire",  required_argument, 0, 'l'},
                         {"reflectance",  required_argument, 0, 'r'},
                         {0, 0, 0, 0}
@@ -881,25 +884,23 @@ void startMenu(int argc, char **argv) {
         if(c == -1)
             break;
 
+        int j = help_flag;
+
         switch (c)
         {
             case 0:
                 /* If this option set a flag, do nothing else now. */
                 //if (long_options[option_index].flag != 0)
                     //break;
-                if (!optarg)
+                if (!optarg && help_flag == 0)
                     printf ("Missing Argument: Please submit an integer value for the amount of samples.\n");
-                else {
+                else if(help_flag == 0){
                     n = atoi(optarg);
                     if(long_options[option_index].name == "rnd")
                         rnd_flag = 1;
                     else if(long_options[option_index].name == "fxd")
                         rnd_flag = 0;
                 }
-                break;
-
-            case 'h':
-                printHelp();
                 break;
 
             case 'l':
@@ -929,17 +930,20 @@ void startMenu(int argc, char **argv) {
         putchar ('\n');
     }
 
-    if(rnd_flag == 0 && cmp_flag == 0) {
+    if(help_flag == 0) {
+        if (rnd_flag == 0 && cmp_flag == 0) {
+            printLine();
+            fxdWavelengthSampling(n, lum_function_name, refl_function_name);
+        } else if (rnd_flag == 1 && cmp_flag == 0) {
+            printLine();
+            rndWavelengthSampling(n, lum_function_name, refl_function_name);
+        } else if (cmp_flag == 1) {
+            printLine();
+            cmpWavelengthSampling(n, lum_function_name, refl_function_name);
+        }
+    } else {
+        printHelp();
         printLine();
-        fxdWavelengthSampling(n, lum_function_name, refl_function_name);
-    }
-    else if(rnd_flag == 1 && cmp_flag == 0) {
-        printLine();
-        rndWavelengthSampling(n, lum_function_name, refl_function_name);
-    }
-    else if(cmp_flag == 1) {
-        printLine();
-        cmpWavelengthSampling(n, lum_function_name, refl_function_name);
     }
 }
 
