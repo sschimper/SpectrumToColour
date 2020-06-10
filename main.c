@@ -640,8 +640,8 @@ void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_f
     linkedList *cie_z_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
 
     // close enough approximation
-    // I don't have the time to re-write this whole application for hero wl samples greater than 400 to work!
-    // It's the middle of the exam period after all!
+    // I do not interpolate the function well enough. I only have maximum 400 points.
+    // I would have to re-write large parts of the application and I dont have the time right now (exam period)
     if(num_samples > 400)
         num_samples = 400;
 
@@ -655,11 +655,16 @@ void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_f
     addNodeToFixedTable(cie_y_hero, 0, heroWavelength, lookupAtWl(cie_y, heroWavelength));
     addNodeToFixedTable(cie_z_hero, 0, heroWavelength, lookupAtWl(cie_z, heroWavelength));
 
+    int test = 1500%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
+    float test_forumula = (2123 - VISIBLE_SPECTRUM_LOWER_BOUND + (5/num_samples) * 400) % 400 + VISIBLE_SPECTRUM_LOWER_BOUND;
+
     for(int j = 1; j < num_samples; j++) {
         int wl = heroWavelength + (j * delta);
-        if(wl > VISIBLE_SPECTRUM_UPPER_BOUND) {
-            wl = wl%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
-        }
+
+            // wl = wl%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
+
+        wl = (wl - VISIBLE_SPECTRUM_LOWER_BOUND + (j/num_samples) * (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND))
+             % (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) + VISIBLE_SPECTRUM_LOWER_BOUND;
         addNodeToFixedTable(l_heroBuckets, j, wl, lookupAtWl(l_func, wl));
         addNodeToFixedTable(r_heroBuckets, j, wl, lookupAtWl(r_func, wl));
         addNodeToFixedTable(cie_x_hero, j, wl, lookupAtWl(cie_x, wl));
