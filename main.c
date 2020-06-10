@@ -655,16 +655,12 @@ void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_f
     addNodeToFixedTable(cie_y_hero, 0, heroWavelength, lookupAtWl(cie_y, heroWavelength));
     addNodeToFixedTable(cie_z_hero, 0, heroWavelength, lookupAtWl(cie_z, heroWavelength));
 
-    int test = 1500%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
-    float test_forumula = (2123 - VISIBLE_SPECTRUM_LOWER_BOUND + (5/num_samples) * 400) % 400 + VISIBLE_SPECTRUM_LOWER_BOUND;
-
     for(int j = 1; j < num_samples; j++) {
-        int wl = heroWavelength + (j * delta);
+        // int wl = heroWavelength + (j * delta);
 
-            // wl = wl%VISIBLE_SPECTRUM_UPPER_BOUND + VISIBLE_SPECTRUM_LOWER_BOUND;
-
-        wl = (wl - VISIBLE_SPECTRUM_LOWER_BOUND + (j/num_samples) * (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND))
+        int wl = (heroWavelength - VISIBLE_SPECTRUM_LOWER_BOUND + j*400/num_samples)
              % (VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) + VISIBLE_SPECTRUM_LOWER_BOUND;
+
         addNodeToFixedTable(l_heroBuckets, j, wl, lookupAtWl(l_func, wl));
         addNodeToFixedTable(r_heroBuckets, j, wl, lookupAtWl(r_func, wl));
         addNodeToFixedTable(cie_x_hero, j, wl, lookupAtWl(cie_x, wl));
