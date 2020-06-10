@@ -1,4 +1,4 @@
-# Install script for directory: /home/sebastian/Programs/SpectrumToColour
+# Install script for directory: /home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/sebastian/Programs/SpectrumToColour/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

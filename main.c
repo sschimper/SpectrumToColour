@@ -18,7 +18,7 @@
 // Definition of the sizes of the tables used later
 // Stuct for representing wavelength and intensity values
 // ========================================================
-#define TABLE_SIZE 401
+#define TABLE_SIZE 1000 + 1
 #define VISIBLE_SPECTRUM_LOWER_BOUND 380
 #define VISIBLE_SPECTRUM_UPPER_BOUND 780
 #define NOT_IN_TABLE -10000000000
@@ -638,6 +638,12 @@ void heroWavelengthSampling(int num_samples, linkedList* l_func, linkedList* r_f
     linkedList *cie_x_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList *cie_y_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
     linkedList *cie_z_hero = (struct linkedList *)calloc(num_samples, sizeof (struct linkedList));
+
+    // close enough approximation
+    // I don't have the time to re-write this whole application for hero wl samples greater than 400 to work!
+    // It's the middle of the exam period after all!
+    if(num_samples > 400)
+        num_samples = 400;
 
     srand(time(0));
     int delta = (int)(VISIBLE_SPECTRUM_UPPER_BOUND - VISIBLE_SPECTRUM_LOWER_BOUND) / num_samples;

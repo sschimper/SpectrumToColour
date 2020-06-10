@@ -1,3 +1,3 @@
-/home/sebastian/Programs/SpectrumToColour/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/sebastian/Programs/SpectrumToColour/cmake-build-debug/CMakeFiles/spectocol.dir
-/home/sebastian/Programs/SpectrumToColour/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles/spectocol.dir

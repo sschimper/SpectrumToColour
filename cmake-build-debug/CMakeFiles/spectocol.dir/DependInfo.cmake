@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/home/sebastian/Programs/SpectrumToColour/main.c" "/home/sebastian/Programs/SpectrumToColour/cmake-build-debug/CMakeFiles/spectocol.dir/main.c.o"
+  "/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/main.c" "/home/sebastian/MSc Computer Science/Predictive Image Synthesis Technologies/Assignments/SpectrumToColour/cmake-build-debug/CMakeFiles/spectocol.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 
